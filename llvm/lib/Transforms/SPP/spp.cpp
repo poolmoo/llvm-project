@@ -236,7 +236,11 @@ namespace {
 #define SPPFUNC(F)  (F->getName().startswith("__spp"))
 
         virtual bool runOnModule(Module& M) {
+            
+            errs() << "\n-----------------------------------\n";
             errs() << "Runing SPP Module Pass\n";
+            errs() << "Name: "<< M.getModuleIdentifier()<<"\n";
+            
             SPPPass Spp(&M);
 
             Spp.setDL(&M.getDataLayout()); //init the data layout
@@ -256,9 +260,14 @@ namespace {
 
             //Visit the functions to clear the appropriate ptr before external calls
             for (auto F = M.begin(), Fend = M.end(); F != Fend; ++F) {
+                errs() << "\nFunc: "<<F->getName()<<"\n";
                 if (!F->isDeclaration()) {
                     if (SPPFUNC(F)) continue;
                     Changed = Spp.visitFunc(&*F);
+                }
+                else {
+                    errs() << " -> External. Skip\n";
+
                 }
             }
             return Changed;

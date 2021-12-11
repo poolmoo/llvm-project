@@ -82,6 +82,7 @@ struct SPPLTO : public ModulePass {
 
   virtual bool runOnFunction (Function * F, Module &M);
   virtual bool runOnModule(Module &M);
+  bool doCallBase (CallBase * ins);
 
   void getAnalysisUsage(AnalysisUsage &AU) const override{
 
@@ -110,21 +111,55 @@ SPPLTOPass::run(Module &M, ModuleAnalysisManager &MAM) {
   return PreservedAnalyses::all();
 }
 
+bool
+SPPLTO::doCallBase (CallBase * cb)
+{
+  bool changed= false;
+  errs()<<"CallBase:  "<<*cb<<"\n";
+
+  Function * cfn= cb->getCalledFunction();
+      
+  if (cfn) {
+
+    if (cfn->isDeclaration()) {
+        errs()<<"  -> External\n";
+    }
+    else {
+        errs()<<"  -> Internal\n";
+    }
+  
+  }
+  else {
+    errs()<<"InvokeCall:\t"<<*cb<<"\n";
+  }
+  
+  return changed;
+
+}
 
 bool
-SPPLTO::runOnFunction (Function * F, Module & M)
+SPPLTO::runOnFunction (Function * FN, Module & M)
 {
-    errs()<<"\t:: internal function\n";
-    return true;
+    bool changed= false;
+
+    for (auto BB= FN->begin(); BB != FN->end(); ++BB) {
+        for (auto ins= BB->begin(); ins != BB->end(); ++ins ) { 
+            
+            if (auto cb = dyn_cast<CallBase>(ins)) {
+                changed= doCallBase(&*cb); 
+            }
+        }
+    }
+  return changed;
 }
 
 bool
 SPPLTO::runOnModule (Module &M)
 {
     //sppltopasscounter++;
-
+    
     errs()<<"\n>>>>>>> Starting SPPLTO pass .....\n";
-
+    
     /////////////////////////////////////////////////
     ///
     /// DO NOT DELETE the following lines,
@@ -137,14 +172,16 @@ SPPLTO::runOnModule (Module &M)
 
     if (!M.getFunction("main")) {
         /////////////////////////////
-        return true; /// DON'T DELETE ME!!
+        return false; /// DON'T DELETE ME!!
     }
 
-    for (Module::iterator mi=M.begin(); mi!=M.end(); ++mi) {
+    dbg(errs()<<"************************************\n";)
+    dbg(errs()<<"**   RunOnModule    ****************\n";)
+    dbg(errs()<<"**   Mod Name: "<<M.getModuleIdentifier()<<"\n";)
+     
+    for (auto Fn= M.begin(); Fn!= M.end(); ++Fn) {
 
-        Function * Fn= &*mi;
-
-        dbg(errs()<<"Fname: "<<Fn->getName()<<"\n";)
+        dbg(errs()<<"** Fn: "<<Fn->getName()<<"\n";)
 
         // Jin: SPP hook functions are external functions, i guess (static lib?)
 
@@ -153,7 +190,7 @@ SPPLTO::runOnModule (Module &M)
             continue;
         }
 
-        runOnFunction(Fn, M);
+        runOnFunction(&*Fn, M);
 
     }
 
