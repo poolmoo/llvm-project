@@ -81,7 +81,6 @@ ModulePass *createGlobalOptimizerPass();
 ///
 ModulePass *createGlobalDCEPass();
 
-
 //===----------------------------------------------------------------------===//
 /// This transform is designed to eliminate available external globals
 /// (functions or global variables)
@@ -278,16 +277,6 @@ createWholeProgramDevirtPass(ModuleSummaryIndex *ExportSummary,
 /// This pass splits globals into pieces for the benefit of whole-program
 /// devirtualization and control-flow integrity.
 ModulePass *createGlobalSplitPass();
-
-////////////////////////
-/// createMiuPass, MIU.FRAMER.Framer.framer 
-
-//ModulePass *createMiuPass();
-
-////////////////////////
-/// createSPPLTOPass 
-
-ModulePass *createSPPLTOPass();
 
 //===----------------------------------------------------------------------===//
 // SampleProfilePass - Loads sample profile data from disk and generates
