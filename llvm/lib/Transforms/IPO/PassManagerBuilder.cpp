@@ -975,12 +975,6 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   // improve the quality of generated code when virtual constant propagation or
   // control flow integrity are enabled.
   PM.add(createGlobalSplitPass());
- 
-  /// MIU. Framer. FRAMER. 
-  //PM.add(createMiuPass());
-  
-  /// SPP. SPPLTO.
-  PM.add(createSPPLTOPass());
 
   // Apply whole-program devirtualization and virtual constant propagation.
   PM.add(createWholeProgramDevirtPass(ExportSummary, nullptr));
