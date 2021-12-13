@@ -101,6 +101,8 @@
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/GlobalOpt.h"
 #include "llvm/Transforms/IPO/GlobalSplit.h"
+//#include "llvm/Transforms/IPO/Miu.h"
+#include "llvm/Transforms/IPO/SPPLTO.h"
 #include "llvm/Transforms/IPO/HotColdSplitting.h"
 #include "llvm/Transforms/IPO/IROutliner.h"
 #include "llvm/Transforms/IPO/InferFunctionAttrs.h"
@@ -1155,6 +1157,11 @@ ModulePassManager
 PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
                                              bool LTOPreLink) {
   ModulePassManager MPM(DebugLogging);
+  
+  // Miu, MIU, FRAMER, Framer, framer
+  //MPM.addPass(MiuPass());
+  // SPP, SPPLTO
+  MPM.addPass(SPPLTOPass());
 
   // Optimize globals now that the module is fully simplified.
   MPM.addPass(GlobalOptPass());
@@ -1407,6 +1414,11 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
 
   // Force any function attributes we want the rest of the pipeline to observe.
   MPM.addPass(ForceFunctionAttrsPass());
+  
+  // Miu, MIU, FRAMER, Framer, framer 
+  //MPM.addPass(MiuPass());
+  // SPP, SPPLTO
+  MPM.addPass(SPPLTOPass());
 
   // Apply module pipeline start EP callback.
   for (auto &C : PipelineStartEPCallbacks)
@@ -1517,7 +1529,12 @@ ModulePassManager PassBuilder::buildThinLTODefaultPipeline(
     MPM.addPass(WholeProgramDevirtPass(nullptr, ImportSummary));
     MPM.addPass(LowerTypeTestsPass(nullptr, ImportSummary));
   }
-
+  
+  // Miu, MIU, FRAMER, Framer, framer
+  //MPM.addPass(MiuPass());
+  // SPP, SPPLTO
+  MPM.addPass(SPPLTOPass());
+  
   if (Level == OptimizationLevel::O0)
     return MPM;
 
@@ -1553,6 +1570,11 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
   // Convert @llvm.global.annotations to !annotation metadata.
   MPM.addPass(Annotation2MetadataPass());
+  
+  // Miu, MIU, FRAMER, Framer, framer 
+  //MPM.addPass(MiuPass());
+  // SPP, SPPLTO
+  MPM.addPass(SPPLTOPass());
 
   if (Level == OptimizationLevel::O0) {
     // The WPD and LowerTypeTest passes need to run at -O0 to lower type
@@ -1568,6 +1590,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
     return MPM;
   }
+  
 
   if (PGOOpt && PGOOpt->Action == PGOOptions::SampleUse) {
     // Load sample profile before running the LTO optimization pipeline.
@@ -1622,6 +1645,11 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
   // Use in-range annotations on GEP indices to split globals where beneficial.
   MPM.addPass(GlobalSplitPass());
+  
+  // Miu, MIU, FRAMER, Framer, framer 
+  //MPM.addPass(MiuPass());
+  // SPP, SPPLTO
+  MPM.addPass(SPPLTOPass());
 
   // Run whole program optimization of virtual call when the list of callees
   // is fixed.
@@ -1792,6 +1820,11 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
+
+  /// MiuPass. Miu. MIU, FRAMER, Framer, framer 
+  //MPM.addPass(MiuPass());
+  /// SPP, SPPLTO
+  MPM.addPass(SPPLTOPass());
 
   return MPM;
 }
