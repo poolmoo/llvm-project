@@ -68,6 +68,9 @@
 #  define dbg(x)
 #endif
 
+
+#define SPPFUNC(F)  (F->getName().startswith("__spp"))
+
 using namespace llvm;
 using namespace std; // Jin: this is NOT recommended..
 
@@ -82,6 +85,7 @@ struct SPPLTO : public ModulePass {
 
   virtual bool runOnFunction (Function * F, Module &M);
   virtual bool runOnModule(Module &M);
+  bool doCallBase (CallBase * ins);
 
   void getAnalysisUsage(AnalysisUsage &AU) const override{
 
@@ -110,21 +114,88 @@ SPPLTOPass::run(Module &M, ModuleAnalysisManager &MAM) {
   return PreservedAnalyses::all();
 }
 
+static bool
+doCallExternal(CallBase * CB)
+{
+    bool Changed= false;
+
+    Function* hook= (CB->getModule())->getFunction("__spp_clean_tag");
+    assert(hook);
+
+    for (auto Arg = CB->arg_begin(); Arg != CB->arg_end(); ++Arg) {
+        Value * ArgVal= cast<Value>(Arg);
+        
+        if (ArgVal->getType()->isPointerTy()) {
+            dbg(errs()<<"\t ptr_arg: "<< *ArgVal<<"\n";)
+            IRBuilder<> B(CB);
+            vector <Value*> arglist;
+
+            Value* TmpPtr = B.CreateBitCast(ArgVal, hook->getFunctionType()->getParamType(0));
+            arglist.push_back(TmpPtr);
+            CallInst* Masked = B.CreateCall(hook, arglist);
+            Value* Unmasked = B.CreateBitCast(Masked, ArgVal->getType()); 
+
+            CB->setArgOperand(Arg - CB->arg_begin(), Unmasked);
+            dbg(errs()<<"\t --> new_CB: "<< *CB<<"\n";)
+            
+            Changed = true;
+        }
+    }
+    return Changed;
+}
 
 bool
-SPPLTO::runOnFunction (Function * F, Module & M)
+SPPLTO::doCallBase (CallBase * cb)
 {
-    errs()<<"\t:: internal function\n";
-    return true;
+    bool changed= false;
+    errs()<<"CallBase:  "<<*cb<<"\n";
+
+    Function * cfn= cb->getCalledFunction();
+
+    assert(cfn && "!>SPPLTO error: Calling non_func. Do something\n");
+    
+    if (SPPFUNC(cfn)) {
+        dbg(errs()<<"  :: skip. Hook Func call\n";)
+        return false; 
+    }
+    
+    if (cfn->isDeclaration()) {
+        dbg(errs()<<"  --> Cleaning_tag...\n";)
+        changed= doCallExternal(cb);
+    }
+    else {
+        dbg(errs()<<"  :: skip. Internal func\n";)
+    }
+    return changed;
+}
+
+    bool
+SPPLTO::runOnFunction (Function * FN, Module & M)
+{
+    bool changed= false;
+
+    for (auto BB= FN->begin(); BB != FN->end(); ++BB) {
+        for (auto ins= BB->begin(); ins != BB->end(); ++ins ) { 
+
+            if (auto cb = dyn_cast<CallBase>(ins)) {
+                changed= doCallBase(&*cb); 
+            }
+        }
+    }
+  return changed;
 }
 
 bool
 SPPLTO::runOnModule (Module &M)
 {
     //sppltopasscounter++;
-
+    
     errs()<<"\n>>>>>>> Starting SPPLTO pass .....\n";
-
+    
+    dbg(errs()<<"************************************\n";)
+    dbg(errs()<<"**   RunOnModule    ****************\n";)
+    dbg(errs()<<"**   Mod Name: "<<M.getModuleIdentifier()<<"\n";)
+    
     /////////////////////////////////////////////////
     ///
     /// DO NOT DELETE the following lines,
@@ -137,23 +208,24 @@ SPPLTO::runOnModule (Module &M)
 
     if (!M.getFunction("main")) {
         /////////////////////////////
-        return true; /// DON'T DELETE ME!!
+        errs()<<"!> ALERT: No main\n";
+        errs()<<"Module: "<< M <<"\n";
+        return false; /// DON'T DELETE ME!!
     }
+     
+    for (auto Fn= M.begin(); Fn!= M.end(); ++Fn) {
 
-    for (Module::iterator mi=M.begin(); mi!=M.end(); ++mi) {
-
-        Function * Fn= &*mi;
-
-        dbg(errs()<<"Fname: "<<Fn->getName()<<"\n";)
-
-        // Jin: SPP hook functions are external functions, i guess (static lib?)
+        dbg(errs()<<"\n** Fn: "<<Fn->getName()<<"\n";)
 
         if (Fn->isDeclaration()) {
-            dbg(errs()<<"\t::decl.skipping..\n";)
+            dbg(errs()<<"\t::decl. skipping..\n";)
             continue;
-        }
-
-        runOnFunction(Fn, M);
+        } 
+        if (SPPFUNC(Fn)) {
+            dbg(errs()<<"\t::SPP hooks. skipping..\n";)
+            continue;
+        } 
+        runOnFunction(&*Fn, M);
 
     }
 
