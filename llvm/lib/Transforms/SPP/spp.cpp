@@ -226,7 +226,7 @@ namespace {
         }
         
     };
-
+/*
     class SPPModule : public ModulePass {
     public:
         static char ID;
@@ -290,7 +290,7 @@ namespace {
     static RegisterStandardPasses
     RegisterMyPass_non_opt(PassManagerBuilder::EP_EnabledOnOptLevel0,
                    registerPass);
-
+*/
 
     class SPPTagCleaning : public ModulePass {
     public:
@@ -342,7 +342,8 @@ namespace {
             /* Ignore declarations */
             SmallVector<Instruction*, 64> LoadsAndStores;
 
-            errs() << "Running SPP Tag Cleaning Pass\n";
+            errs() << "\n------ Running SPP Tag Cleaning Pass --------- \n";
+            errs() << "Mod Name: "<< M.getModuleIdentifier() <<"\n\n";
 
             //Prepare runtime before instrumentation
             for (auto F = M.begin(), Fend = M.end(); F != Fend; ++F) {
@@ -352,7 +353,13 @@ namespace {
             }
             
             for (auto F = M.begin(), Fend = M.end(); F != Fend; ++F) {
-                if (F->isDeclaration() || SPPFUNC(F)) continue;
+                errs()<<"\n-- F: "<<F->getName()<<" -----------\n";
+
+                if (F->isDeclaration() || SPPFUNC(F)) {
+                    errs()<<"  SKIP: decl or spp hook\n";
+                    continue;
+                }
+                errs()<<"  Processing....\n";
                 for (auto BB = F->begin(), BBend = F->end(); BB != BBend; ++BB) {
                     for (auto I = BB->begin(), Iend = BB->end(); I != Iend; ++I) {
                         if (isa<LoadInst>(I) || isa<StoreInst>(I)) {
@@ -363,11 +370,26 @@ namespace {
             }
             bool Changed = LoadsAndStores.size() != 0;
             instrumentLoadOrStore(LoadsAndStores);
+            errs()<<"\n----- Exiting SPPTagCleaning Pass --------\n\n";
             return Changed;
         }
     };
 
     char SPPTagCleaning::ID = 0;
-    static RegisterPass<SPPTagCleaning> Y("spp_tag_cleaning", "Safe Persistent Pointers Tag Cleaning Pass", false, false);
+    static RegisterPass<SPPTagCleaning> X("spp", "Safe Persistent Pointers Pass", false, false);
+
+    static void registerPass(const PassManagerBuilder &,
+                         legacy::PassManagerBase &PM) {
+        PM.add(new SPPTagCleaning());
+    }
+    //apply the module pass at this phase because EarlyAsPossible can cause UB
+    static RegisterStandardPasses
+    RegisterMyPass(PassManagerBuilder::EP_ModuleOptimizerEarly,
+                   registerPass);
+
+    //to keep the pass available even in -O0
+    static RegisterStandardPasses
+    RegisterMyPass_non_opt(PassManagerBuilder::EP_EnabledOnOptLevel0,
+                   registerPass);
 
 }
