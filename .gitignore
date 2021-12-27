@@ -26,6 +26,7 @@
 
 # Nested build directory
 /build*
+/.direnv
 
 #==============================================================================#
 # Explicit files to ignore (only matches one).
