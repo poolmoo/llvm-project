@@ -117,6 +117,7 @@ namespace {
                 return &*I->getParent()->getFirstInsertionPt();
            
             assert(!Instruction::isTerminator(I->getOpcode()));
+            assert(I); //dummy
             return &*std::next(BasicBlock::iterator(I));
         }
 
