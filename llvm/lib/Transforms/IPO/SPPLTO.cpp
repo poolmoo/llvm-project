@@ -119,8 +119,13 @@ doCallExternal(CallBase * CB)
 {
     bool Changed= false;
 
-    Function* hook= (CB->getModule())->getFunction("__spp_cleantag");
-    assert(hook);
+    //Function* hook= (CB->getModule())->getFunction("__spp_cleantag");
+    //assert(hook);
+    Module * mod= CB->getModule();
+    Type* vpty= Type::getInt8PtrTy(mod->getContext());
+    FunctionType * fty= FunctionType::get(vpty, vpty, false);
+    
+    FunctionCallee hook = mod->getOrInsertFunction("__spp_cleantag", fty); 
 
     for (auto Arg = CB->arg_begin(); Arg != CB->arg_end(); ++Arg) {
         Value * ArgVal= cast<Value>(Arg);
@@ -141,7 +146,7 @@ doCallExternal(CallBase * CB)
         IRBuilder<> B(CB);
         vector <Value*> arglist;
 
-        Value* TmpPtr = B.CreateBitCast(ArgVal, hook->getFunctionType()->getParamType(0));
+        Value* TmpPtr = B.CreateBitCast(ArgVal, hook.getFunctionType()->getParamType(0));
         arglist.push_back(TmpPtr);
         CallInst* Masked = B.CreateCall(hook, arglist);
         Value* Unmasked = B.CreateBitCast(Masked, ArgVal->getType()); 
@@ -162,9 +167,8 @@ doCallNonFunc (CallBase * cb)
 }
 
 static bool
-doCallFunction (CallBase * cb)
+doCallFunction (CallBase * cb, Function * cfn)
 {
-    Function * cfn= cb->getCalledFunction();
     assert(cfn);
 
     if (cfn->isDeclaration()) {
@@ -190,7 +194,7 @@ SPPLTO::doCallBase (CallBase * cb)
             dbg(errs()<<"  :: skip. Hook Func call\n";)
             return false; 
         }
-        changed= doCallFunction (cb);
+        changed= doCallFunction (cb, cfn);
     }
     else {
         changed= doCallNonFunc (cb);
