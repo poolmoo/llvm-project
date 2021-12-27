@@ -125,24 +125,57 @@ doCallExternal(CallBase * CB)
     for (auto Arg = CB->arg_begin(); Arg != CB->arg_end(); ++Arg) {
         Value * ArgVal= cast<Value>(Arg);
         
-        if (ArgVal->getType()->isPointerTy()) {
-            dbg(errs()<<"\t ptr_arg: "<< *ArgVal<<"\n";)
-            IRBuilder<> B(CB);
-            vector <Value*> arglist;
-
-            Value* TmpPtr = B.CreateBitCast(ArgVal, hook->getFunctionType()->getParamType(0));
-            arglist.push_back(TmpPtr);
-            CallInst* Masked = B.CreateCall(hook, arglist);
-            Value* Unmasked = B.CreateBitCast(Masked, ArgVal->getType()); 
-
-            CB->setArgOperand(Arg - CB->arg_begin(), Unmasked);
-            dbg(errs()<<"\t --> new_CB: "<< *CB<<"\n";)
-            
-            Changed = true;
+        if (! (ArgVal->getType()->isPointerTy()
+            || ArgVal->getType()->isAggregateType())) {
+            dbg(errs()<<"\tNeither Pointer nor aggregated. Skipping..\n";)
+            continue;
         }
+        
+        // TODO: move to opt pass later.
+        //if (isSafePtr(From->stripPointerCasts())) {
+        //    continue; 
+        //}
+        //if (ArgVal->getType()->isPointerTy()) {
+        
+        dbg(errs()<<"\t ptr_arg: "<< *ArgVal<<"\n";)
+        IRBuilder<> B(CB);
+        vector <Value*> arglist;
+
+        Value* TmpPtr = B.CreateBitCast(ArgVal, hook->getFunctionType()->getParamType(0));
+        arglist.push_back(TmpPtr);
+        CallInst* Masked = B.CreateCall(hook, arglist);
+        Value* Unmasked = B.CreateBitCast(Masked, ArgVal->getType()); 
+
+        CB->setArgOperand(Arg - CB->arg_begin(), Unmasked);
+        dbg(errs()<<"\t --> new_CB: "<< *CB<<"\n";)
+
+        Changed = true;
+        //}
     }
     return Changed;
 }
+
+static bool
+doCallNonFunc (CallBase * cb)
+{
+    return  doCallExternal(cb);
+}
+
+static bool
+doCallFunction (CallBase * cb)
+{
+    Function * cfn= cb->getCalledFunction();
+    assert(cfn);
+
+    if (cfn->isDeclaration()) {
+        dbg(errs()<<"  ---> external function call ...\n";)
+        return  doCallExternal(cb);
+    }
+    
+    dbg(errs()<<"  :: skip. Internal func\n";)
+    return false; 
+}
+
 
 bool
 SPPLTO::doCallBase (CallBase * cb)
@@ -150,22 +183,19 @@ SPPLTO::doCallBase (CallBase * cb)
     bool changed= false;
     errs()<<"CallBase:  "<<*cb<<"\n";
 
-    Function * cfn= cb->getCalledFunction();
+    Function * cfn= dyn_cast<Function>(cb->getCalledOperand()->stripPointerCasts());
 
-    assert(cfn && "!>SPPLTO error: Calling non_func. Do something\n");
-    
-    if (SPPFUNC(cfn)) {
-        dbg(errs()<<"  :: skip. Hook Func call\n";)
-        return false; 
-    }
-    
-    if (cfn->isDeclaration()) {
-        dbg(errs()<<"  --> Cleaning_tag...\n";)
-        changed= doCallExternal(cb);
+    if (cfn) {
+        if (SPPFUNC(cfn)) {
+            dbg(errs()<<"  :: skip. Hook Func call\n";)
+            return false; 
+        }
+        changed= doCallFunction (cb);
     }
     else {
-        dbg(errs()<<"  :: skip. Internal func\n";)
+        changed= doCallNonFunc (cb);
     }
+    
     return changed;
 }
 
