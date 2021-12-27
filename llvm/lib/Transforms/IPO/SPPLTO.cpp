@@ -119,7 +119,7 @@ doCallExternal(CallBase * CB)
 {
     bool Changed= false;
 
-    Function* hook= (CB->getModule())->getFunction("__spp_clean_tag");
+    Function* hook= (CB->getModule())->getFunction("__spp_cleantag");
     assert(hook);
 
     for (auto Arg = CB->arg_begin(); Arg != CB->arg_end(); ++Arg) {
