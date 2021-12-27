@@ -297,16 +297,17 @@ namespace {
         static char ID;
         SPPTagCleaning() : ModulePass(ID) { }
         Function* __spp_cleantag;
-
+        
 #define SPPFUNC(F)  (F->getName().startswith("__spp"))
 #define GETSPPFUNC(NAME)  { if (F->getName().equals(#NAME)) NAME = F; }
 
         void findHelperFunc(Function* F) {
             if (!SPPFUNC(F))  return;
-
+            
             F->setLinkage(GlobalValue::ExternalLinkage);
-
+            
             GETSPPFUNC(__spp_cleantag);
+            assert(__spp_cleantag);
         }
 
         int getOpIdx(Instruction* I, Value* Ptr) {
@@ -318,10 +319,16 @@ namespace {
         }
 
         void instrumentLoadOrStore(SmallVector<Instruction*, 64> LoadsAndStores) {
-            errs() << "Running instrumentLoadOrStore\n";
+            errs() << "Running instrumentLoadOrStore.........\n";
+            Function * temp= (*LoadsAndStores.begin())->getModule()->getFunction("__spp_cleantag");
+            assert(temp);
+            errs()<<"--------- temp passed\n";
+            assert(__spp_cleantag);
+
             for (SmallVectorImpl<Instruction*>::reverse_iterator It = LoadsAndStores.rbegin(),
                 E = LoadsAndStores.rend(); It != E; ++It) {
                 Instruction* I = *It;
+                errs()<<"\nIns: "<<*I<<"\n";
                 IRBuilder<> B(I);
                 bool isStore = isa<StoreInst>(*I);
                 Value* Ptr = isStore
@@ -329,11 +336,14 @@ namespace {
                     : cast<LoadInst>(I)->getPointerOperand();
 
                 Value* TmpPtr = B.CreateBitCast(Ptr, __spp_cleantag->getFunctionType()->getParamType(0));
-                CallInst* Masked = B.CreateCall(__spp_cleantag, TmpPtr);
+                std::vector <Value*> arglist;
+                arglist.push_back(TmpPtr);
+                CallInst* Masked = B.CreateCall(__spp_cleantag, arglist);
                 Value* NewPtr = B.CreatePointerCast(Masked, Ptr->getType());
 
                 int OpIdx = getOpIdx(I, Ptr);
                 I->setOperand(OpIdx, NewPtr);
+                errs()<<"New: "<<*I<<"\n";
             }
                     
         }
