@@ -177,7 +177,7 @@ namespace {
         }
 
         bool visitFunc(Function* F) {
-            errs() << "Running visitFunc\n";
+            errs() << "Running visitFunc-------\n";
             bool Changed = false;
             for (auto &I : instructions(F)) {
                 /* Function calls handling --- Mask the ptr for external function calls */
@@ -297,16 +297,19 @@ namespace {
         static char ID;
         SPPTagCleaning() : ModulePass(ID) { }
         Function* __spp_cleantag;
+        FunctionCallee __spp_cleantag_temp;
 
 #define SPPFUNC(F)  (F->getName().startswith("__spp"))
 #define GETSPPFUNC(NAME)  { if (F->getName().equals(#NAME)) NAME = F; }
-
+        
         void findHelperFunc(Function* F) {
             if (!SPPFUNC(F))  return;
-
+            errs()<<"HELPER. F: "<<F->getName()<<"\n";
+            errs()<<"FYT: "<<*F->getFunctionType()<<"\n";
             F->setLinkage(GlobalValue::ExternalLinkage);
 
             GETSPPFUNC(__spp_cleantag);
+            
         }
 
         int getOpIdx(Instruction* I, Value* Ptr) {
@@ -318,22 +321,29 @@ namespace {
         }
 
         void instrumentLoadOrStore(SmallVector<Instruction*, 64> LoadsAndStores) {
-            errs() << "Running instrumentLoadOrStore\n";
             for (SmallVectorImpl<Instruction*>::reverse_iterator It = LoadsAndStores.rbegin(),
                 E = LoadsAndStores.rend(); It != E; ++It) {
                 Instruction* I = *It;
+                errs()<<"\nOldI: "<<*I<<"\n";
                 IRBuilder<> B(I);
                 bool isStore = isa<StoreInst>(*I);
                 Value* Ptr = isStore
                     ? cast<StoreInst>(I)->getPointerOperand()
                     : cast<LoadInst>(I)->getPointerOperand();
-
-                Value* TmpPtr = B.CreateBitCast(Ptr, __spp_cleantag->getFunctionType()->getParamType(0));
-                CallInst* Masked = B.CreateCall(__spp_cleantag, TmpPtr);
+                
+               // Value* TmpPtr = B.CreateBitCast(Ptr, __spp_cleantag->getFunctionType()->getParamType(0));
+               // CallInst* Masked = B.CreateCall(__spp_cleantag, TmpPtr);
+                errs()<<"__spp_cleantag_temp.getFunc: " << *__spp_cleantag_temp.getFunctionType()->getParamType(0)<<"\n"; 
+                errs()<<"Ptrtype: " << *Ptr <<"\n"; 
+                Value* TmpPtr = B.CreateBitCast(Ptr, __spp_cleantag_temp.getFunctionType()->getParamType(0));
+                errs()<<*TmpPtr<<" (TmpPtr)\n";
+                CallInst* Masked = B.CreateCall(__spp_cleantag_temp, TmpPtr);
+                errs()<<*Masked<<" (Masked)\n";
                 Value* NewPtr = B.CreatePointerCast(Masked, Ptr->getType());
 
                 int OpIdx = getOpIdx(I, Ptr);
                 I->setOperand(OpIdx, NewPtr);
+                errs()<<"newI: "<<*I<<"\n";
             }
                     
         }
@@ -348,9 +358,19 @@ namespace {
             //Prepare runtime before instrumentation
             for (auto F = M.begin(), Fend = M.end(); F != Fend; ++F) {
                 if (F->isDeclaration()) continue;
-               
+                
                 findHelperFunc(&*F);
             }
+            // findHelperFunc
+            
+            //Type* RetArgTy= PointerType::get(Type::getVoidTy(M.getContext()), M.getDataLayout().getDefaultGlobalsAddressSpace());
+            Type* RetArgTy= Type::getInt8PtrTy(M.getContext());
+            SmallVector <Type*, 1> tlist;
+            tlist.push_back(RetArgTy);
+            FunctionType * hookfty= FunctionType::get(RetArgTy, RetArgTy, false);
+            errs()<<"temp_FTy: "<<*hookfty<<"\n";
+            __spp_cleantag_temp= M.getOrInsertFunction("__spp_cleantag", hookfty);
+            //__spp_cleantag->setLinkage(GlobalValue::ExternalLinkage);
             
             for (auto F = M.begin(), Fend = M.end(); F != Fend; ++F) {
                 errs()<<"\n-- F: "<<F->getName()<<" -----------\n";
@@ -368,6 +388,7 @@ namespace {
                     }
                 }
             }
+            errs()<<"....LOADSTORE list_size: "<<LoadsAndStores.size()<<"\n";
             bool Changed = LoadsAndStores.size() != 0;
             instrumentLoadOrStore(LoadsAndStores);
             errs()<<"\n----- Exiting SPPTagCleaning Pass --------\n\n";
