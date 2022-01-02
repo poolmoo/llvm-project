@@ -55,5 +55,16 @@ isStringFuncName (StringRef fname)
     return false;
 }
 
+Instruction *
+getNextInst (Instruction * Inst)
+{
+    BasicBlock::iterator I (Inst);
+    I++;
+    if (I == Inst->getParent()->end()) {
+        return nullptr;
+    }
+    return &*I;
+}
+
 #endif //LLVM_TRANSFORMS_MIU_UTILS_H
 
