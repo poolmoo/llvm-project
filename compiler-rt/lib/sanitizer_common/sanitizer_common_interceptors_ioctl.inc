@@ -369,16 +369,19 @@ static void ioctl_table_fill() {
 #endif
 
 #if SANITIZER_GLIBC
-  // _(SIOCDEVPLIP, WRITE, struct_ifreq_sz); // the same as EQL_ENSLAVE
-  _(CYGETDEFTHRESH, WRITE, sizeof(int));
-  _(CYGETDEFTIMEOUT, WRITE, sizeof(int));
-  _(CYGETMON, WRITE, struct_cyclades_monitor_sz);
-  _(CYGETTHRESH, WRITE, sizeof(int));
-  _(CYGETTIMEOUT, WRITE, sizeof(int));
-  _(CYSETDEFTHRESH, NONE, 0);
-  _(CYSETDEFTIMEOUT, NONE, 0);
-  _(CYSETTHRESH, NONE, 0);
-  _(CYSETTIMEOUT, NONE, 0);
+ // _(SIOCDEVPLIP, WRITE, struct_ifreq_sz); // the same as EQL_ENSLAVE
+// Miu.MIU.miu.FRAMER.Framer.framer.SPP.spp. 
+// following lines disabled since glibc removed cyclades.h
+//  https://reviews.llvm.org/rG68d5235cb58f988c71b403334cd9482d663841ab
+//  _(CYGETDEFTHRESH, WRITE, sizeof(int));
+//  _(CYGETDEFTIMEOUT, WRITE, sizeof(int));
+//  _(CYGETMON, WRITE, struct_cyclades_monitor_sz);
+//  _(CYGETTHRESH, WRITE, sizeof(int));
+//  _(CYGETTIMEOUT, WRITE, sizeof(int));
+//  _(CYSETDEFTHRESH, NONE, 0);
+//  _(CYSETDEFTIMEOUT, NONE, 0);
+//  _(CYSETTHRESH, NONE, 0);
+//  _(CYSETTIMEOUT, NONE, 0);
   _(EQL_EMANCIPATE, WRITE, struct_ifreq_sz);
   _(EQL_ENSLAVE, WRITE, struct_ifreq_sz);
   _(EQL_GETMASTRCFG, WRITE, struct_ifreq_sz);

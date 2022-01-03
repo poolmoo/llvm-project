@@ -57,7 +57,7 @@
 #include <queue>
 #include <unordered_set>
 #include <cxxabi.h>
-
+#include "llvm/Transforms/Miu/MiuUtils.h"
 
 #define DEBUG_TYPE "spplto"
 
@@ -190,10 +190,19 @@ SPPLTO::doCallBase (CallBase * cb)
     Function * cfn= dyn_cast<Function>(cb->getCalledOperand()->stripPointerCasts());
 
     if (cfn) {
+        
+        StringRef fname= cfn->getName();
+        
         if (SPPFUNC(cfn)) {
             dbg(errs()<<"  :: skip. Hook Func call\n";)
             return false; 
         }
+        // to be interposed at link time
+        
+        if (fname.equals("free") || isStringFuncName(fname)) {
+            return false;
+        }
+
         changed= doCallFunction (cb, cfn);
     }
     else {
