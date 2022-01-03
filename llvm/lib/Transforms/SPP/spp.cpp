@@ -124,7 +124,7 @@ namespace {
 
                 errs()<<"  --> fun_callBase!n";
 
-                if (FN->getName().equals("__spp_updatetag")) {
+                if (FN->getName().startswith("__spp_update")) {
                     errs()<<"  --> HOOK_callBase! skip..\n";
                     return true;
                 }
@@ -136,25 +136,32 @@ namespace {
 
         bool isDefinedLater (Instruction * Op, Instruction * userI)
         {
-            if (Op->getNumUses()==1) {
-                return false;
-            }
+            //if (Op->getNumUses()==1) {
+            //    return false;
+            //}
+            
             Function * F= userI->getFunction();
             bool idxUserI= false;;
-            
+
+            //dbg(errs()<<"isdefined_GepOp: "<<*Op<<"\n";)
+            //dbg(errs()<<"isdefined_userI: "<<*userI<<"\n";)
+
             for (auto & Iter : instructions(F)) {
+                //dbg(errs()<<"  Iter_: "<<Iter<<"\n";)
                 if (&Iter==userI) {
+                    //dbg(errs()<<"  ---> found userI: "<<*userI<<"\n";)
                     idxUserI= true;
                 }
                 else if (&Iter==Op) {
                     assert(idxUserI); 
-                    dbg(errs()<<"> GepOp_is_defined_later.";)
+                    //dbg(errs()<<"  ---> found GepOp: "<<*Op<<"\n";)
+                    //dbg(errs()<<"  ---> ! GepOp_is_defined_later.";)
                     return true;
                 }
             }
             assert(idxUserI);
             
-            return false;
+            return idxUserI;
         }
         
         bool isMissedGep (GetElementPtrInst * gep, Instruction * userI)
@@ -226,8 +233,10 @@ namespace {
                 if (isMissedGep(GepOp, Ins)) {
                     errs()<<"error: isMissedGep!!..........\n";
                     errs()<<"--> GepOp: "<<*GepOp<<"\n";
-                    errs()<<"--> Ins  : "<<*Ins<<"\n";
-                    
+                    errs()<<"--> userI: "<<*Ins<<"\n";
+                    errs()<<"func: "<<Ins->getFunction()->getName()<<"\n";
+                    errs()<<*Ins->getFunction()<<"\n";
+
                     if (GepOp == MyOp) {
                         changed= instrGepOperand(MyOp, GepOp);
                     }
@@ -298,10 +307,8 @@ namespace {
                 return false;
             }
 
-            errs()<<"useCount: "<<Gep->getNumUses() <<"\n";
+            errs()<<"NumUses: "<<Gep->getNumUses() <<"\n";
 
-
-            //errs() << __spp_updatetag << "\n";
             //get the GEP offset
 
             Value *GepOff = EmitGEPOffset(&B, *DL, Gep);
@@ -313,25 +320,30 @@ namespace {
             SmallVector <Type*, 2> tlist;
             tlist.push_back(RetArgTy);
             tlist.push_back(Arg2Ty);
+            tlist.push_back(RetArgTy); // SPP_DEBUG ///////
+             
             FunctionType * hookfty= FunctionType::get(RetArgTy, tlist, false);
              
-            FunctionCallee hook= M->getOrInsertFunction("__spp_updatetag", hookfty);
+            FunctionCallee hook= M->getOrInsertFunction("__spp_updatetag_DEBUG", hookfty);
 
             //errs() << "GEPOffset " << *GepOff << "\n";
             Value* TmpPtr = B.CreateBitCast(Gep, hook.getFunctionType()->getParamType(0));
             //errs() << "Bitcast TmpPtr" << *TmpPtr << "\n";
             Value* IntOff = B.CreateSExt(GepOff, hook.getFunctionType()->getParamType(1));
             //errs() << "CreateSext =" << *IntOff << "\n";
+            Value* TmpPtrOp = B.CreateBitCast(Gep->getPointerOperand(), hook.getFunctionType()->getParamType(2)); // DEBUG 
             
             std::vector<Value*> args;
             args.push_back(TmpPtr);
             args.push_back(IntOff);
+            args.push_back(TmpPtrOp); // SPP_DEBUG //////////
             
             CallInst* Masked = B.CreateCall(hook, args);
             errs() << "CallInst =" << *Masked << "\n";
             errs() << "    Arg0 : " << *TmpPtr << "\n";
             errs() << "    Arg0': " << *TmpPtr->stripPointerCasts() << "\n";
             errs() << "    Arg1 :" << *IntOff << "\n";
+            errs() << "    Arg2 :" << *TmpPtrOp->stripPointerCasts() << "\n"; // SPP_DEBUG /// 
             
             Value* UpdatedPtr = B.CreatePointerCast(Masked, Gep->getType());
             //errs() << "CreatePtrCast =" << *UpdatedPtr << "\n";
@@ -540,7 +552,9 @@ namespace {
         void trackPmemPtrs(Function* F) {
             for (auto &I : instructions(F)) {
                 if (auto *CB = dyn_cast<CallBase>(&I)) {
-                    if (CB->getCalledFunction()->getName()=="pmemobj_direct_inline") {
+                    Function * callee= CB->getCalledFunction();
+                    if (!callee) continue;
+                    if (callee->getName()=="pmemobj_direct_inline") {
                         Value *Pmem_ptr = cast<Value>(&I);
                         pmemPtrs.insert(Pmem_ptr);                       
                     }
@@ -573,18 +587,20 @@ namespace {
            
             for (auto F = M.begin(), Fend = M.end(); F != Fend; ++F) {
                 
+                errs()<<"__F: "<<F->getName()<<"\t";
                 if (F->isDeclaration()) {
-                    errs()<<"Ext: "<<F->getName()<<"\n";
+                    errs()<<"Ext\n";
                     Spp.addExternalFunc(&*F);
-                    
                 }
                 else {
+                    errs()<<"Int\n";
                     if (SPPFUNC(F)) {
                         errs()<<" ------------> error: hooh is not external!\n";
                         continue;
                     }
                     Spp.trackPmemPtrs(&*F);
                 }
+                errs()<<"...\n";
             }
 
             //Visit the functions to clear the appropriate ptr before external calls
