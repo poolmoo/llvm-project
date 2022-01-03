@@ -307,7 +307,7 @@ namespace {
                 return false;
             }
 
-            errs()<<"NumUses: "<<Gep->getNumUses() <<"\n";
+            dbg(errs()<<"NumUses: "<<Gep->getNumUses() <<"\n";)
 
             //get the GEP offset
 
@@ -445,7 +445,8 @@ namespace {
             tlist.push_back(RetArgTy);
             FunctionType * hookfty= FunctionType::get(RetArgTy, RetArgTy, false);
             //errs()<<"temp_FTy: "<<*hookfty<<"\n";
-            FunctionCallee hook= M->getOrInsertFunction("__spp_cleantag", hookfty);
+            //FunctionCallee hook= M->getOrInsertFunction("__spp_cleantag", hookfty);
+            FunctionCallee hook= M->getOrInsertFunction("__spp_checkbound", hookfty);
 
             Value* TmpPtr = B.CreateBitCast(Ptr, hook.getFunctionType()->getParamType(0));
             CallInst* Masked = B.CreateCall(hook, TmpPtr);
