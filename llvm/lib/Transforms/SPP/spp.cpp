@@ -136,10 +136,6 @@ namespace {
 
         bool isDefinedLater (Instruction * Op, Instruction * userI)
         {
-            //if (Op->getNumUses()==1) {
-            //    return false;
-            //}
-            
             Function * F= userI->getFunction();
             bool idxUserI= false;;
 
@@ -172,7 +168,6 @@ namespace {
             if (gep->hasAllZeroIndices()) {
                return false;; 
             }
-           
             if (isDefinedLater(gep, userI)) {
                 return false;
             }
@@ -204,8 +199,8 @@ namespace {
 
             int OpIdx = getOpIdx(userI, gep);
             userI->setOperand(OpIdx, NewPtr);
-            errs()<<"new_User: "<<*userI<<"\n";
-            errs()<<"new_opCB: "<<*Masked<<"\n";
+            dbg(errs()<<"new_User: "<<*userI<<"\n";)
+            dbg(errs()<<"new_opCB: "<<*Masked<<"\n";)
             
             return true;
         }
@@ -317,13 +312,14 @@ namespace {
             
             Type* RetArgTy= Type::getInt8PtrTy(M->getContext());
             Type* Arg2Ty= Type::getInt64Ty(M->getContext());
-            SmallVector <Type*, 2> tlist;
+            std::vector<Type*> tlist;
             tlist.push_back(RetArgTy);
             tlist.push_back(Arg2Ty);
             tlist.push_back(RetArgTy); // SPP_DEBUG ///////
              
             FunctionType * hookfty= FunctionType::get(RetArgTy, tlist, false);
              
+            //FunctionCallee hook= M->getOrInsertFunction("__spp_updatetag", hookfty);
             FunctionCallee hook= M->getOrInsertFunction("__spp_updatetag_DEBUG", hookfty);
 
             //errs() << "GEPOffset " << *GepOff << "\n";
@@ -331,7 +327,7 @@ namespace {
             //errs() << "Bitcast TmpPtr" << *TmpPtr << "\n";
             Value* IntOff = B.CreateSExt(GepOff, hook.getFunctionType()->getParamType(1));
             //errs() << "CreateSext =" << *IntOff << "\n";
-            Value* TmpPtrOp = B.CreateBitCast(Gep->getPointerOperand(), hook.getFunctionType()->getParamType(2)); // DEBUG 
+            Value* TmpPtrOp = B.CreateBitCast(Gep->getPointerOperand(), hook.getFunctionType()->getParamType(2)); // SPP_DEBUG 
             
             std::vector<Value*> args;
             args.push_back(TmpPtr);
@@ -397,7 +393,7 @@ namespace {
         
         bool instrumentLoadOrStore(Instruction * I) {
             
-            errs()<<"-> SL\n";
+            //dbg(errs()<<"-> SL\n";)
             
             IRBuilder<> B(I);
             bool isStore = isa<StoreInst>(*I);
@@ -406,40 +402,16 @@ namespace {
                 : cast<LoadInst>(I)->getPointerOperand();
             
             if (isa<Constant>(Ptr->stripPointerCasts())) {
-                errs()<<"--> constant. Skip..\n";
+                dbg(errs()<<"--> constant. Skip..\n";)
                 return false;
             }
-            errs()<<"Ptr:   "<<*Ptr<<"\n";
+            dbg(errs()<<"Ptr:\t\t"<<*Ptr<<"\n";)
+            dbg(errs()<<"striped:\t"<<*Ptr->stripPointerCasts()<<"\n";)
+            
             if (isa<GetElementPtrInst>(Ptr->stripPointerCasts())) {
                 assert(!isMissedGep(cast<GetElementPtrInst>(Ptr->stripPointerCasts()), I));
             } 
              
-            /*
-            Value* PtrOp= Ptr->stripPointerCasts();
-            errs()<<"PtrOp: "<<*PtrOp<<"\n";
-            
-            if (isStore) {
-                GetElementPtrInst * geptmp= dyn_cast<GetElementPtrInst>(cast<StoreInst>(I)->getOperand(0)->stripPointerCasts());
-                 
-                if (geptmp && isMissedGep(geptmp)) {
-                    errs()<<"error: gep_ptrop_0: "<<*geptmp<<"\n";
-                }
-            }
-
-            if (isa<GetElementPtrInst>(PtrOp) && 
-                !isMissedGep(cast<GetElementPtrInst>(PtrOp))) {
-                errs()<<"--> Gep but allZeroIndices. Skip..\n";
-                //errs()<<"error: gep_ptrop_0: "<<*Ptr<<"\n";
-                return false;
-            }
-            
-            if (isa<GetElementPtrInst>(PtrOp) && 
-                isMissedGep(cast<GetElementPtrInst>(PtrOp))) {
-                errs()<<"error: gep_ptrop_1: "<<*PtrOp<<"\n";
-            }
-            
-            */
-            
             Type* RetArgTy= Type::getInt8PtrTy(M->getContext());
             SmallVector <Type*, 1> tlist;
             tlist.push_back(RetArgTy);
@@ -454,22 +426,17 @@ namespace {
 
             int OpIdx = getOpIdx(I, Ptr);
             I->setOperand(OpIdx, NewPtr);
-            errs()<<"new_SL: "<<*I<<"\n";
-            errs()<<"new_opCB: "<<*Masked<<"\n";
+            dbg(errs()<<"new_SL: "<<*I<<"\n";)
+            dbg(errs()<<"new_opCB: "<<*Masked<<"\n";)
             
             return true;
         }
         
         bool visitFunc(Function* F) {
-            //if (F->getName().equals("TreeAlloc")) {
-                //errs()<<"... TreeAlloc ........................\n";
-                //errs()<<*F<<"\n";
-                //errs()<<"...........................\n";
-            //}
-            errs() << "Running_visitFunc...\n";
+            
+            dbg(errs() << "Running_visitFunc...\n";)
             bool Changed = false;
 
-            //for (auto &I : instructions(F)) {
             for (auto BI= F->begin(); BI!= F->end(); ++BI) {
                 BasicBlock * BB= &*BI; 
                 Instruction * sucInst = &*(BB->begin());
@@ -478,8 +445,8 @@ namespace {
                     
                     Instruction * Ins= &*II;
 
-                    errs()<<"\n-------------------------------\n";
-                    errs()<<"I_:  "<<*Ins<<"\n";
+                    dbg(errs()<<"\n-------------------------------\n";)
+                    dbg(errs()<<"I_:  "<<*Ins<<"\n";)
 
                     if (Ins != sucInst) {
                         dbg(errs()<<"\tadded by hook? skipping..\n";)
@@ -493,57 +460,37 @@ namespace {
                     //////////// 
                     Changed= replaceFoldedGepOp(Ins);
                     
-                    if (isa<LoadInst>(Ins) || isa<StoreInst>(Ins)) {
-                        Changed= instrumentLoadOrStore(Ins);
-                    }
-                    /* GEPs handling --- Apply the arithmetic to the top tag part*/
-                    else if (auto *Gep = dyn_cast<GetElementPtrInst>(Ins)) {
+                    /* GEPs handling --- 
+                     * Apply the arithmetic to the top tag part*/
+                    if (auto *Gep = dyn_cast<GetElementPtrInst>(Ins)) {
                         Changed = instrGep(Gep);
                     }
-                    /* Function calls handling --- Mask the ptr for external function calls */
-                    /*else if (auto *CB = dyn_cast<CallBase>(Ins)) { 
-
-                      errs()<<"-> CB\n";
-
-                    // Jin: non-function calls?
-                    //if (!externalFuncs.contains(CB->getCalledFunction()) ) {
-                    //    GEP_skipped_CBs.push_back(CB);
-                    //    continue; 
-                    //}
-                    //GEP_hooked_CBs.push_back(CB);
-                    //
-                    // (1) hook func call
-                    // (2) internal (hook!) 
-                    // (3) external (still hook!), then lto will clean
-                    // (4) non-func call
-                    //
-                    for (auto Arg = CB->arg_begin(); Arg != CB->arg_end(); ++Arg) {
-
-                    Value * ArgVal = dyn_cast<Value>(Arg->stripPointerCasts());
-                    errs()<<"arg: "<<*ArgVal<<"\n";
-
-                    if (!ArgVal) continue; 
-
-                    GetElementPtrInst *Gep = dyn_cast<GetElementPtrInst>(ArgVal);
-                    if (!Gep) continue;
-
-                    errs() << "WARNING: inserted GEP handling from function argument\n";
-                    assert(!isMissedGep(Gep)); 
-                    errs()<<"--> gep! arg_use_count: "<<Gep->getNumUses()<<"\n";
-
-                    if (isMissedGep(Gep)) {
-                    continue;
+                    /*
+                    else if (isa<LoadInst>(Ins) || isa<StoreInst>(Ins)) {
+                        Changed= instrumentLoadOrStore(Ins);
                     }
-                    Changed = instrGep(Gep);
-                    }
-                    }*/
+                    */
                     else {
-                        //errs()<<" -> ElseIns\n";
+                        ;
                     }
                 }
             } //endof forloop
 
             return Changed;
+        }
+        bool cleanTags (Function * F) {
+            errs()<<"\nRunning_cleanTags. FName: "<< F->getName()<<"\n";
+            
+            bool changed= false;
+
+            for (auto &I : instructions(F)) {
+                // NOTE: remove after integrating the LTO pass
+                if (isa<StoreInst>(&I) || isa<LoadInst>(&I)) {
+                    dbg(errs()<<"\nSL: "<<I<<"\n";)
+                    changed= instrumentLoadOrStore(&I);
+                }
+            }
+            return changed;
         }
 
         void addExternalFunc(Function* F) {
@@ -577,7 +524,7 @@ namespace {
             errs() << "\n------>>>>>-----------------------------\n";
             errs() << "Running_SPP_Module_Pass start...\n";
             errs() << "ModName: "<< M.getModuleIdentifier()<<"\n";
-            
+             
             SPPPass Spp(&M);
 
             Spp.setDL(&M.getDataLayout()); //init the data layout
@@ -588,56 +535,33 @@ namespace {
            
             for (auto F = M.begin(), Fend = M.end(); F != Fend; ++F) {
                 
-                errs()<<"__F: "<<F->getName()<<"\t";
                 if (F->isDeclaration()) {
-                    errs()<<"Ext\n";
                     Spp.addExternalFunc(&*F);
                 }
-                else {
-                    errs()<<"Int\n";
-                    if (SPPFUNC(F)) {
-                        errs()<<" ------------> error: hooh is not external!\n";
+                else if (SPPFUNC(F)) {
                         continue;
-                    }
-                    Spp.trackPmemPtrs(&*F);
                 }
-                errs()<<"...\n";
+                else {;}
+                
+                Spp.trackPmemPtrs(&*F);
             }
 
             //Visit the functions to clear the appropriate ptr before external calls
             for (auto F = M.begin(), Fend = M.end(); F != Fend; ++F) {
-                errs()<<"\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";
-                errs() << "Func: "<<F->getName()<<"\n";
-                errs()<<">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";
+                dbg(errs()<<"\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";)
+                dbg(errs() << "Func: "<<F->getName()<<"\n";)
+                dbg(errs()<<">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";)
                 
-                if (F->getName().equals("AdvanceNumber")) {
-                    errs()<<"AdvanceNumberBody\n";
-                    errs()<<*F<<"\n";
-                }
                 if (F->isDeclaration() || SPPFUNC(F)) {
-                    errs() << " -> External. Skip\n";
+                    dbg(errs() << " -> External. Skip\n";)
                     continue; 
                 }
             
                 Changed = Spp.visitFunc(&*F);
+                Changed = Changed | Spp.cleanTags(&*F);
 
             }
 
-            errs()<<"\n>>> GEP_hooked_CBs >>>>>>>>>>>>>>>>>\n";
-            for (unsigned i=0; i< Spp.GEP_hooked_CBs.size(); i++) {
-                Instruction * ins= Spp.GEP_hooked_CBs.at(i);
-                errs()<<"Hooked: "<< ins->getFunction()->getName()<<"\n";
-                errs()<<"     I: "<< *ins <<"\n";
-            }
-            errs()<<"\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";
-            
-            errs()<<"\n>>> GEP_skipped_CBs >>>>>>>>>>>>>>>>>\n";
-            for (unsigned i=0; i< Spp.GEP_skipped_CBs.size(); i++) {
-                Instruction * ins= Spp.GEP_skipped_CBs.at(i);
-                errs()<<"Skipped: "<< ins->getFunction()->getName()<<"\n";
-                errs()<<"      I: "<< *ins <<"\n";
-            }
-            errs()<<"\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";
             errs() << "Running_SPP_Module_Pass exiting...\n";
             
             return Changed;
