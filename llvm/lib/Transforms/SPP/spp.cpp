@@ -52,7 +52,7 @@
 
 #define SPPFUNC(F)  (F->getName().startswith("__spp"))
 
-#define SPP_PRINT_DEBUG
+//#define SPP_PRINT_DEBUG
 #ifdef SPP_PRINT_DEBUG
 #  define dbg(x) x
 #else
