@@ -114,27 +114,102 @@ SPPLTOPass::run(Module &M, ModuleAnalysisManager &MAM) {
   return PreservedAnalyses::all();
 }
 
+static string 
+demanglename (StringRef str)
+{
+    string result= "";
+    int unmangledStatus;
+    
+    char *unmangledName = abi::__cxa_demangle(
+        str.data(), nullptr, nullptr, &unmangledStatus);
+    if (unmangledStatus == 0) {
+        string unmangledNameStr(unmangledName);
+        result= unmangledNameStr;
+    }
+    return result;    
+}
+
+static bool
+doCallFunc_LLVMDbg (CallBase * CB)
+{
+    dbg(errs()<<" llvm.dbg.CB \n";)
+
+    MetadataAsValue* Arg= dyn_cast<MetadataAsValue>(CB->getOperand(0));
+    assert(Arg);
+    
+    ValueAsMetadata * ArgMD= dyn_cast<ValueAsMetadata>(Arg->getMetadata());   
+    assert(ArgMD);
+    
+    Value * ArgVal= ArgMD->getValue();   
+    assert(ArgVal);
+    
+    dbg(errs()<<"  -Arg(0): "<<*ArgVal<<"\n";)
+    
+    if (!ArgVal->getType()->isPointerTy() || isa<Constant>(ArgVal)) {
+        dbg(errs()<<"   :: skip. Not Pointerty\n";)
+        return false;
+    }
+
+    IRBuilder<> B(CB);
+    vector <Value*> arglist;
+    
+    Module * mod= CB->getModule();
+    Type* vpty= Type::getInt8PtrTy(mod->getContext());
+    FunctionType * fty= FunctionType::get(vpty, vpty, false);
+    FunctionCallee hook = 
+        mod->getOrInsertFunction("__spp_cleantag_external", fty); 
+
+    Value* TmpPtr = B.CreateBitCast(ArgVal, 
+                hook.getFunctionType()->getParamType(0));
+    arglist.push_back(TmpPtr);
+    CallInst* Masked = B.CreateCall(hook, arglist);
+    Value* Unmasked = B.CreateBitCast(Masked, ArgVal->getType()); 
+    MetadataAsValue * MDAsVal= 
+            MetadataAsValue::get(CB->getModule()->getContext(), 
+                                 ValueAsMetadata::get(Unmasked));
+    dbg(errs()<<"  -newArg: "<<*MDAsVal->stripPointerCasts()<<"\n";)
+    
+    CB->setArgOperand(0, MDAsVal);
+    dbg(errs()<<"  NewCB: "<< *CB <<"\n";)
+    
+    return true;
+}
+
 static bool
 doCallExternal(CallBase * CB)
 {
     bool Changed= false;
 
-    //Function* hook= (CB->getModule())->getFunction("__spp_cleantag");
-    //assert(hook);
     Module * mod= CB->getModule();
     Type* vpty= Type::getInt8PtrTy(mod->getContext());
     FunctionType * fty= FunctionType::get(vpty, vpty, false);
     
-    FunctionCallee hook = mod->getOrInsertFunction("__spp_cleantag", fty); 
+    FunctionCallee hook = 
+        mod->getOrInsertFunction("__spp_cleantag_external", fty); 
 
     for (auto Arg = CB->arg_begin(); Arg != CB->arg_end(); ++Arg) {
-        Value * ArgVal= cast<Value>(Arg);
+
+        dbg(errs()<<" -Arg: "<<**Arg<<"\n";)
         
-        if (! (ArgVal->getType()->isPointerTy()
-            || ArgVal->getType()->isAggregateType())) {
-            dbg(errs()<<"\tNeither Pointer nor aggregated. Skipping..\n";)
+        Value * ArgVal= dyn_cast<Value>(Arg);
+        if (!ArgVal) {
+            dbg(errs()<<"   :: Skip. Not_value\n";)
             continue;
         }
+        
+        /// Now we got a Value arg. 
+        if (!ArgVal->getType()->isPointerTy()) {
+            dbg(errs()<<"\t:: Skip. Not pointerType\n";)
+            continue;
+        }
+        //if (!ArgVal->getType()->isAggregateType()) {
+        //    dbg(errs()<<"\t:: Skip. Not AggreType\n";)
+        //    continue;
+        //}
+        if (isa<Constant>(ArgVal)) {
+            dbg(errs()<<"\t:: Skip. is Constant\n";)
+            continue; 
+        } 
         
         // TODO: move to opt pass later.
         //if (isSafePtr(From->stripPointerCasts())) {
@@ -142,20 +217,20 @@ doCallExternal(CallBase * CB)
         //}
         //if (ArgVal->getType()->isPointerTy()) {
         
-        dbg(errs()<<"\t ptr_arg: "<< *ArgVal<<"\n";)
         IRBuilder<> B(CB);
         vector <Value*> arglist;
 
-        Value* TmpPtr = B.CreateBitCast(ArgVal, hook.getFunctionType()->getParamType(0));
+        Value* TmpPtr = B.CreateBitCast(ArgVal, 
+                        hook.getFunctionType()->getParamType(0));
         arglist.push_back(TmpPtr);
         CallInst* Masked = B.CreateCall(hook, arglist);
         Value* Unmasked = B.CreateBitCast(Masked, ArgVal->getType()); 
 
         CB->setArgOperand(Arg - CB->arg_begin(), Unmasked);
-        dbg(errs()<<"\t --> new_CB: "<< *CB<<"\n";)
+
+        dbg(errs()<<" --> new_CB: "<< *CB<<"\n";)
 
         Changed = true;
-        //}
     }
     return Changed;
 }
@@ -170,12 +245,23 @@ static bool
 doCallFunction (CallBase * cb, Function * cfn)
 {
     assert(cfn);
-
-    if (cfn->isDeclaration()) {
+   
+    // just checking..
+    if (cfn->getName().startswith("llvm.dbg.")) {
+        return doCallFunc_LLVMDbg (cb); 
+    }
+    if (cfn->isDeclaration() ||
+        StringRef(demanglename(cfn->getName())).equals("pmemobj_direct_inline") ||
+        cfn->getName().contains("pmemobj_direct_inline") ||
+        cfn->getName().contains("ZL21pmemobj_direct_inline7pmemoid") 
+        ) {
+         
         dbg(errs()<<"  ---> external function call ...\n";)
         return  doCallExternal(cb);
     }
     
+    assert(!cfn->getName().contains("pmemobj_direct_"));    
+
     dbg(errs()<<"  :: skip. Internal func\n";)
     return false; 
 }
@@ -185,24 +271,28 @@ bool
 SPPLTO::doCallBase (CallBase * cb)
 {
     bool changed= false;
-    errs()<<"CallBase:  "<<*cb<<"\n";
+    dbg(errs()<<"CallBase:  "<<*cb<<"\n\n";)
 
     Function * cfn= dyn_cast<Function>(cb->getCalledOperand()->stripPointerCasts());
 
     if (cfn) {
         
         StringRef fname= cfn->getName();
-        
+        dbg(errs()<<"CalledFn: "<< fname <<" / " << demanglename(fname) <<"\n";)
         if (SPPFUNC(cfn)) {
-            dbg(errs()<<"  :: skip. Hook Func call\n";)
+            dbg(errs()<<"  :: skip. Hook Func\n";)
             return false; 
         }
         // to be interposed at link time
         
         if (fname.equals("free") || isStringFuncName(fname)) {
+            dbg(errs()<<"  :: skip. free or string func.\n";)
             return false;
         }
-
+    //    if (fname.equals("pmemobj_tx_alloc") || fname.equals("pmemobj_tx_add_range_direct")) {
+    //        dbg(errs()<<"  :: skip. pmemobj_* func\n";)
+    //        return false;
+    //    }
         changed= doCallFunction (cb, cfn);
     }
     else {
@@ -219,9 +309,12 @@ SPPLTO::runOnFunction (Function * FN, Module & M)
 
     for (auto BB= FN->begin(); BB != FN->end(); ++BB) {
         for (auto ins= BB->begin(); ins != BB->end(); ++ins ) { 
-
+            dbg(errs()<<"\n----------------------------\n";)
             if (auto cb = dyn_cast<CallBase>(ins)) {
                 changed= doCallBase(&*cb); 
+            }
+            else {
+                dbg(errs()<<"I_LTO: "<<*ins<<"\n";)
             }
         }
     }
@@ -258,20 +351,24 @@ SPPLTO::runOnModule (Module &M)
      
     for (auto Fn= M.begin(); Fn!= M.end(); ++Fn) {
 
-        dbg(errs()<<"\n** Fn: "<<Fn->getName()<<"\n";)
-
+        dbg(errs()<<"\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";) 
+        dbg(errs()<<">> FName: "<<Fn->getName()<<"\n";)
+        dbg(errs()<<"\t< "<< demanglename(Fn->getName()) << ">\n";)
         if (Fn->isDeclaration()) {
             dbg(errs()<<"\t::decl. skipping..\n";)
             continue;
         } 
-        if (SPPFUNC(Fn)) {
+        if (SPPFUNC(Fn)) { // hook func names are not mangled.
             dbg(errs()<<"\t::SPP hooks. skipping..\n";)
             continue;
         } 
         runOnFunction(&*Fn, M);
 
+        if (Fn->getName().equals("main")) {
+            errs()<<"----------main ------------\n";
+            errs()<<*Fn<<"\n";
+        }
     }
-
     errs()<<">>>>>>>>>>> Leaving SPPLTO........\n\n";
 
     return true;
