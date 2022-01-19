@@ -366,10 +366,12 @@ namespace {
                 ? cast<StoreInst>(I)->getPointerOperand()
                 : cast<LoadInst>(I)->getPointerOperand();
             
-            if (isa<Constant>(Ptr->stripPointerCasts())) {
-                dbg(errs()<<"--> constant. Skip..\n";)
-                return false;
-            }
+            //if (isa<Constant>(Ptr->stripPointerCasts())) {
+            //    dbg(errs()<<"--> constant. Skip..\n";)
+            //    return false;
+            //}
+            assert(Ptr->getType()->isPointerTy()); 
+            
             dbg(errs()<<"Ptr:\t\t"<<*Ptr<<"\n";)
             dbg(errs()<<"stripped:\t"<<*Ptr->stripPointerCasts()<<"\n";)
             
