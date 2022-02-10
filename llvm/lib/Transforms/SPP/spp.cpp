@@ -52,7 +52,7 @@
 
 #define SPPFUNC(F)  (F->getName().startswith("__spp"))
 
-#define SPP_PRINT_DEBUG
+//#define SPP_PRINT_DEBUG // Uncomment for debugging
 #ifdef SPP_PRINT_DEBUG
 #  define dbg(x) x
 #else
@@ -139,20 +139,20 @@ namespace {
             Function * F= userI->getFunction();
             bool idxUserI= false;;
 
-            //dbg(errs()<<"isdefined_GepOp: "<<*Op<<"\n";)
-            //dbg(errs()<<"isdefined_userI: "<<*userI<<"\n";)
+            dbg(errs()<<"isdefined_GepOp: "<<*Op<<"\n";)
+            dbg(errs()<<"isdefined_userI: "<<*userI<<"\n";)
 
             for (auto & Iter : instructions(F)) {
-                //dbg(errs()<<"  Iter_: "<<Iter<<"\n";)
+                dbg(errs()<<"  Iter_: "<<Iter<<"\n";)
                 
                 if (&Iter==userI) {
-                    //dbg(errs()<<"  ---> found userI: "<<*userI<<"\n";)
+                    dbg(errs()<<"  ---> found userI: "<<*userI<<"\n";)
                     idxUserI= true;
                 }
                 else if (&Iter==Op) {
                     assert(idxUserI); 
-                    //dbg(errs()<<"  ---> found GepOp: "<<*Op<<"\n";)
-                    //dbg(errs()<<"  ---> ! GepOp_is_defined_later.";)
+                    dbg(errs()<<"  ---> found GepOp: "<<*Op<<"\n";)
+                    dbg(errs()<<"  ---> ! GepOp_is_defined_later.";)
                     return true;
                 }
             }
@@ -188,7 +188,7 @@ namespace {
             tlist.push_back(Arg2Ty);
             
             FunctionType * hookfty= FunctionType::get(RetArgTy, tlist, false);
-            //errs()<<"temp_FTy: "<<*hookfty<<"\n";
+            dbg(errs()<<"temp_FTy: "<<*hookfty<<"\n";)
             FunctionCallee hook= M->getOrInsertFunction("__spp_update_pointer", hookfty);
             
             SmallVector <Value*, 2> arglist;
@@ -201,8 +201,8 @@ namespace {
 
             int OpIdx = getOpIdx(userI, gep);
             userI->setOperand(OpIdx, NewPtr);
-            errs()<<"new_User: "<<*userI<<"\n";
-            errs()<<"new_opCB: "<<*Masked<<"\n";
+            dbg(errs()<<"new_User: "<<*userI<<"\n";)
+            dbg(errs()<<"new_opCB: "<<*Masked<<"\n";)
             
             return true;
         }
@@ -228,11 +228,11 @@ namespace {
                 }
                 GetElementPtrInst * GepOp= cast<GetElementPtrInst>(MyOp->stripPointerCasts()); 
                 if (isMissedGep(GepOp, Ins)) {
-                    errs()<<"error: isMissedGep!!..........\n";
-                    errs()<<"--> GepOp: "<<*GepOp<<"\n";
-                    errs()<<"--> userI: "<<*Ins<<"\n";
-                    errs()<<"func: "<<Ins->getFunction()->getName()<<"\n";
-                    errs()<<*Ins->getFunction()<<"\n";
+                    dbg(errs()<<"error: isMissedGep!!..........\n";)
+                    dbg(errs()<<"--> GepOp: "<<*GepOp<<"\n";)
+                    dbg(errs()<<"--> userI: "<<*Ins<<"\n";)
+                    dbg(errs()<<"func: "<<Ins->getFunction()->getName()<<"\n";)
+                    dbg(errs()<<*Ins->getFunction()<<"\n";)
 
                     if (GepOp == MyOp) {
                         changed= instrGepOperand(MyOp, GepOp);
@@ -338,7 +338,7 @@ namespace {
             dbg(errs() << "    Arg0 : " << *TmpPtr << "\n";)
             dbg(errs() << "    Arg0': " << *TmpPtr->stripPointerCasts() << "\n";)
             dbg(errs() << "    Arg1 :" << *IntOff << "\n";)
-            //dbg(errs() << "    Arg2 :" << *TmpPtrOp->stripPointerCasts() << "\n";) // SPP_DEBUG /// 
+            dbg(errs() << "    Arg2 :" << *TmpPtrOp->stripPointerCasts() << "\n";) // SPP_DEBUG /// 
             
             Value* UpdatedPtr = B.CreatePointerCast(Masked, Gep->getType());
             //errs() << "CreatePtrCast =" << *UpdatedPtr << "\n";
@@ -405,7 +405,7 @@ namespace {
                 //errs()<<*F<<"\n";
                 //errs()<<"...........................\n";
             //}
-            errs() << "Running_visitFunc...\n";
+            dbg(errs() << "Running_visitFunc...\n";)
             bool Changed = false;
 
             //for (auto &I : instructions(F)) {
@@ -507,12 +507,12 @@ namespace {
 
             //Visit the functions to clear the appropriate ptr before external calls
             for (auto F = M.begin(), Fend = M.end(); F != Fend; ++F) {
-                errs()<<"\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";
-                errs() << "Func: "<<F->getName()<<"\n";
-                errs()<<">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";
+                dbg(errs()<<"\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";)
+                dbg(errs() << "Func: "<<F->getName()<<"\n";)
+                dbg(errs()<<">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";)
                 
                 if (F->isDeclaration() || SPPFUNC(F)) {
-                    errs() << " -> External. Skip\n";
+                    dbg(errs() << " -> External. Skip\n";)
                     continue; 
                 }
                 

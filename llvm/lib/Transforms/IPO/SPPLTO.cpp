@@ -61,7 +61,7 @@
 
 #define DEBUG_TYPE "spplto"
 
-#define SPPDEBUG
+//#define SPPDEBUG // Uncomment for debugging
 #ifdef SPPDEBUG
 #  define dbg(x) x
 #else
@@ -326,7 +326,7 @@ SPPLTO::runOnModule (Module &M)
 {
     //sppltopasscounter++;
     
-    errs()<<"\n>>>>>>> Starting SPPLTO pass .....\n";
+    dbg(errs()<<"\n>>>>>>> Starting SPPLTO pass .....\n";)
     
     dbg(errs()<<"************************************\n";)
     dbg(errs()<<"**   RunOnModule    ****************\n";)
@@ -345,7 +345,7 @@ SPPLTO::runOnModule (Module &M)
     if (!M.getFunction("main")) {
         /////////////////////////////
         errs()<<"!> ALERT: No main\n";
-        errs()<<"Module: "<< M <<"\n";
+        dbg(errs()<<"Module: "<< M <<"\n";)
         return false; /// DON'T DELETE ME!!
     }
      
@@ -365,11 +365,11 @@ SPPLTO::runOnModule (Module &M)
         runOnFunction(&*Fn, M);
 
         if (Fn->getName().equals("main")) {
-            errs()<<"----------main ------------\n";
-            errs()<<*Fn<<"\n";
+            dbg(errs()<<"----------main ------------\n";)
+            dbg(errs()<<*Fn<<"\n";)
         }
     }
-    errs()<<">>>>>>>>>>> Leaving SPPLTO........\n\n";
+    dbg(errs()<<">>>>>>>>>>> Leaving SPPLTO........\n\n";)
 
     return true;
 
