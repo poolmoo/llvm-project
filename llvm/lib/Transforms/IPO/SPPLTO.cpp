@@ -178,6 +178,11 @@ doCallFunc_LLVMDbg (CallBase * CB)
 static bool
 doCallExternal(CallBase * CB)
 {
+    // Skip tag cleaning for certain transaction functions
+    if (CB->getCalledFunction() != NULL && 
+        CB->getCalledFunction()->getName().contains("pmemobj_tx_add_range_direct")) {
+            return false;
+        }
     bool Changed= false;
 
     Module * mod= CB->getModule();
@@ -219,6 +224,40 @@ doCallExternal(CallBase * CB)
         
         IRBuilder<> B(CB);
         vector <Value*> arglist;
+/* In progress
+        if (CB->getCalledFunction() != NULL && 
+            CB->getCalledFunction()->getName().contains("pmemobj_tx_add_range")) {
+
+            // Update the ptr tag for precaution check for snapshotting
+            FunctionCallee hookUpdate = 
+            mod->getOrInsertFunction("__spp_updatetag", fty);
+
+            vector <Value*> addarglist;
+            Value* TmpPtr = B.CreateBitCast(ArgVal, 
+                        hookUpdate.getFunctionType()->getParamType(0));
+            addarglist.push_back(TmpPtr);
+
+            Value Size = dyn_cast<Value>(Arg->getNext());
+            Value* TmpSize = B.CreateBitCast(ArgVal, 
+                        hookUpdate.getFunctionType()->getParamType(1));
+            addarglist.push_back(TmpSize);
+            CallInst* UpdatedTag = B.CreateCall(hookUpdate, addarglist);
+
+            // Perform the bounds checking on updated tag
+            vector <Value*> checkarglist;
+            FunctionCallee hookCheck = 
+            mod->getOrInsertFunction("__spp_checkbound", fty);
+            Value* TmpUnmasked = B.CreateBitCast(UpdatedTag, 
+                        hookCheck.getFunctionType()->getParamType(0));
+            checkarglist.push_back(TmpUnmasked);
+            CallInst* TmpMasked = B.CreateCall(hookCheck, checkarglist);
+            Value* Unmasked = B.CreateBitCast(TmpMasked, ArgVal->getType()); 
+            CB->setArgOperand(Arg - CB->arg_begin(), Unmasked);
+
+            //dbg(errs()<<" --> new_CB: "<< *CB<<"\n";)
+
+            return true;
+        }*/
 
         Value* TmpPtr = B.CreateBitCast(ArgVal, 
                         hook.getFunctionType()->getParamType(0));
