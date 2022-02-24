@@ -535,9 +535,6 @@ void PassManagerBuilder::populateModulePassManager(
   // Allow forcing function attributes as a debugging and tuning aid.
   MPM.add(createForceFunctionAttrsLegacyPass());
   
-  /// SPP. SPPLTO.
-  MPM.add(createSPPLTOPass());
-
   // If all optimizations are disabled, just run the always-inline pass and,
   // if enabled, the function merging pass.
   if (OptLevel == 0) {
@@ -1181,6 +1178,9 @@ void PassManagerBuilder::populateLTOPassManager(legacy::PassManagerBase &PM) {
     PM.add(createVerifierPass());
 
   addExtensionsToPM(EP_FullLinkTimeOptimizationEarly, PM);
+  
+  /// SPP. SPPLTO.
+  PM.add(createSPPLTOPass());
 
   if (OptLevel != 0)
     addLTOOptimizationPasses(PM);
