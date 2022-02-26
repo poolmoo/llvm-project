@@ -280,11 +280,6 @@ createWholeProgramDevirtPass(ModuleSummaryIndex *ExportSummary,
 ModulePass *createGlobalSplitPass();
 
 ////////////////////////
-/// createMiuPass, MIU.FRAMER.Framer.framer 
-
-//ModulePass *createMiuPass();
-
-////////////////////////
 /// createSPPLTOPass 
 
 ModulePass *createSPPLTOPass();
