@@ -1,12 +1,12 @@
 
 /////////////////////////////////////////////////////
 ///                                               ///
-///                   MiuUtils.h                  ///
+///                   SPPUtils.h                  ///
 ///                                               ///
 /////////////////////////////////////////////////////
 
-#ifndef LLVM_TRANSFORMS_MIU_UTILS_H
-#define LLVM_TRANSFORMS_MIU_UTILS_H
+#ifndef LLVM_TRANSFORMS_SPP_UTILS_H
+#define LLVM_TRANSFORMS_SPP_UTILS_H
 
 #include <climits>
 #include "llvm/Analysis/Passes.h"
@@ -47,24 +47,48 @@ isStringFuncName (StringRef fname)
         fname.startswith("strncat") || 
         fname.startswith("strtol") || 
         fname.startswith("strcpy") || 
-        fname.startswith("strlen")) {
-        
+        fname.startswith("strlen")) 
+    {   
         return true;
     }
 
     return false;
 }
 
-Instruction *
-getNextInst (Instruction * Inst)
+bool
+isMemFuncName(StringRef fname)
+{
+    if (fname.equals("memset") || 
+        fname.equals("memcpy") ||
+        fname.equals("free")) 
+    {  
+        return true;
+    }
+
+    return false;
+}
+
+bool
+isSPPFuncName(StringRef fname)
+{
+    if (fname.startswith("__spp")) 
+    {    
+        return true;
+    }
+
+    return false;
+}
+
+Instruction*
+getNextInst(Instruction *Inst)
 {
     BasicBlock::iterator I (Inst);
     I++;
-    if (I == Inst->getParent()->end()) {
+    if (I == Inst->getParent()->end()) 
+    {
         return nullptr;
     }
     return &*I;
 }
 
-#endif //LLVM_TRANSFORMS_MIU_UTILS_H
-
+#endif //LLVM_TRANSFORMS_SPP_UTILS_H

@@ -102,7 +102,6 @@
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/GlobalOpt.h"
 #include "llvm/Transforms/IPO/GlobalSplit.h"
-//#include "llvm/Transforms/IPO/Miu.h"
 #include "llvm/Transforms/IPO/SPPLTO.h"
 #include "llvm/Transforms/IPO/HotColdSplitting.h"
 #include "llvm/Transforms/IPO/IROutliner.h"
@@ -1159,8 +1158,6 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
                                              bool LTOPreLink) {
   ModulePassManager MPM(DebugLogging);
   
-  // Miu, MIU, FRAMER, Framer, framer
-  //MPM.addPass(MiuPass());
   // SPP, SPPLTO
   MPM.addPass(SPPLTOPass());
 
@@ -1416,8 +1413,6 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   // Force any function attributes we want the rest of the pipeline to observe.
   MPM.addPass(ForceFunctionAttrsPass());
   
-  // Miu, MIU, FRAMER, Framer, framer 
-  //MPM.addPass(MiuPass());
   // SPP, SPPLTO
   MPM.addPass(SPPLTOPass());
 
@@ -1531,8 +1526,6 @@ ModulePassManager PassBuilder::buildThinLTODefaultPipeline(
     MPM.addPass(LowerTypeTestsPass(nullptr, ImportSummary));
   }
   
-  // Miu, MIU, FRAMER, Framer, framer
-  //MPM.addPass(MiuPass());
   // SPP, SPPLTO
   MPM.addPass(SPPLTOPass());
   
@@ -1572,8 +1565,6 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // Convert @llvm.global.annotations to !annotation metadata.
   MPM.addPass(Annotation2MetadataPass());
   
-  // Miu, MIU, FRAMER, Framer, framer 
-  //MPM.addPass(MiuPass());
   // SPP, SPPLTO
   MPM.addPass(SPPLTOPass());
 
@@ -1647,8 +1638,6 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // Use in-range annotations on GEP indices to split globals where beneficial.
   MPM.addPass(GlobalSplitPass());
   
-  // Miu, MIU, FRAMER, Framer, framer 
-  //MPM.addPass(MiuPass());
   // SPP, SPPLTO
   MPM.addPass(SPPLTOPass());
 
@@ -1822,8 +1811,6 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
 
-  /// MiuPass. Miu. MIU, FRAMER, Framer, framer 
-  //MPM.addPass(MiuPass());
   /// SPP, SPPLTO
   MPM.addPass(SPPLTOPass());
 
