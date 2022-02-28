@@ -336,8 +336,8 @@ namespace {
             }
             else if (MemMoveInst *MMI = dyn_cast<MemMoveInst>(mi))
             {
-                Value *Dest = MMI->getDest();
-                Value *Src = MMI->getSource();
+                Value *Dest = MMI->getRawDest();
+                Value *Src = MMI->getRawSource();
                 Value *Length = MMI->getLength();
                 dbg(errs() << ">>MMI " << *Dest << " | " << *Src << " | " << *Length   << "\n";)
 
@@ -360,14 +360,14 @@ namespace {
                 CallInst *SrcChecked = B.CreateCall(hook, src_args);          
                 Value *SrcCleaned = B.CreatePointerCast(SrcChecked, Src->getType());
 
-                MCI->setDest(DestCleaned);
-                MCI->setSource(SrcCleaned);          
+                MMI->setDest(DestCleaned);
+                MMI->setSource(SrcCleaned);          
 
                 changed = true;
             }
             else if (MemSetInst *MSI = dyn_cast<MemSetInst>(mi))
             {
-                Value *Dest = MSI->getDest();
+                Value *Dest = MSI->getRawDest();
                 Value *Length = MSI->getLength();
                 dbg(errs() << ">>MSI " << *Dest << " | " << *Src << " | " << *Length   << "\n";)
 
@@ -383,7 +383,7 @@ namespace {
                 CallInst *DestChecked = B.CreateCall(hook, dest_args);          
                 Value *DestCleaned = B.CreatePointerCast(DestChecked, Dest->getType());
 
-                MCI->setDest(DestCleaned);       
+                MSI->setDest(DestCleaned);       
 
                 changed = true;
             }
