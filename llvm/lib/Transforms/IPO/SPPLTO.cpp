@@ -33,7 +33,7 @@
 #include <unordered_set>
 #include <cxxabi.h>
 
-#include<climits>
+#include <climits>
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/Transforms/Scalar/GVN.h"
@@ -59,7 +59,7 @@
 #include <cxxabi.h>
 #include "llvm/Transforms/SPP/SPPUtils.h"
 
-#define DEBUG_TYPE "spplto"
+// #define DEBUG_TYPE "spplto"
 
 //#define SPPDEBUG // Uncomment for debugging
 #ifdef SPPDEBUG
@@ -260,14 +260,14 @@ doCallFunction(CallBase *cb, Function *cfn)
         cfn->getName().contains("pmemobj_direct_inline") ||
         cfn->getName().contains("ZL21pmemobj_direct_inline7pmemoid"))
     {         
-        dbg(errs() << ">>external function call...\n";)
+        dbg(errs() << ">>" << cfn->getName() << " external function call...\n";)
         return doCallExternal(cb);
     }
     
     //simple verification to avoid mistakes
     assert(!cfn->getName().contains("pmemobj_direct_"));    
 
-    dbg(errs() << ">>" cfn->getName() << " internal function call: skipping..\n";)
+    dbg(errs() << ">>" << cfn->getName() << " internal function call: skipping..\n";)
     return false; 
 }
 
@@ -295,6 +295,12 @@ SPPLTO::doCallBase(CallBase *cb)
         if (isMemFuncName(fname) || isStringFuncName(fname)) 
         {
             dbg(errs() << ">>memory or string fn call: skipping..\n";)
+            return changed;
+        }
+        // if it's memory intrinsic function, do not do anything
+        if (dyn_cast<MemIntrinsic>(cb))
+        {
+            dbg(errs() << ">>LLVM memory intrinsic fn call: skipping..\n";)
             return changed;
         }
 

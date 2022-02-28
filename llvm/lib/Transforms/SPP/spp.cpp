@@ -1,5 +1,5 @@
 //===----- spp.cpp - Bounds Checker in SPP transformation pass -----===//
-#define DEBUG_TYPE "spp"
+// #define DEBUG_TYPE "spp"
 
 #include <llvm/Pass.h>
 #include <llvm/IR/PassManager.h>
@@ -58,6 +58,7 @@
 #endif
 
 using namespace llvm;
+// using namespace std; // Jin: this is NOT recommended..
 
 namespace {
     
@@ -287,6 +288,107 @@ namespace {
             return &*std::next(BasicBlock::iterator(I));
         }
         
+        bool instrMemIntr(MemIntrinsic *mi)
+        {
+            bool changed = false;
+            
+            // create hook prototype
+            Type *RetArgTy = Type::getInt8PtrTy(M->getContext());
+            Type *Arg2Ty = Type::getInt64Ty(M->getContext());
+            SmallVector <Type*, 2> tlist;
+            tlist.push_back(RetArgTy);
+            tlist.push_back(Arg2Ty);
+             
+            FunctionType *hookfty = FunctionType::get(RetArgTy, tlist, false);
+            FunctionCallee hook = M->getOrInsertFunction("__spp_memintr_check_and_clean", hookfty);
+
+            if (MemCpyInst *MCI = dyn_cast<MemCpyInst>(mi))
+            {
+                Value *Dest = MCI->getRawDest();
+                Value *Src = MCI->getRawSource();
+                Value *Length = MCI->getLength();
+                
+                dbg(errs() << ">>MCI " << *Dest << " | " << *Src << " | " << *Length   << "\n";)
+
+                IRBuilder<> B(MCI);
+                std::vector <Value*> arglist;
+
+                Value *DestPtr = B.CreateBitCast(Dest, hook.getFunctionType()->getParamType(0));
+                Value *SrcPtr = B.CreateBitCast(Src, hook.getFunctionType()->getParamType(0));
+                Value *IntOff = B.CreateSExt(Length, hook.getFunctionType()->getParamType(1));
+                
+                std::vector<Value*> dest_args;
+                dest_args.push_back(DestPtr);
+                dest_args.push_back(IntOff);
+                CallInst *DestChecked = B.CreateCall(hook, dest_args);          
+                Value *DestCleaned = B.CreatePointerCast(DestChecked, Dest->getType());
+
+                std::vector<Value*> src_args;
+                src_args.push_back(SrcPtr);
+                src_args.push_back(IntOff);
+                CallInst *SrcChecked = B.CreateCall(hook, src_args);          
+                Value *SrcCleaned = B.CreatePointerCast(SrcChecked, Src->getType());
+
+                MCI->setDest(DestCleaned);
+                MCI->setSource(SrcCleaned);          
+
+                changed = true;
+            }
+            else if (MemMoveInst *MMI = dyn_cast<MemMoveInst>(mi))
+            {
+                Value *Dest = MMI->getDest();
+                Value *Src = MMI->getSource();
+                Value *Length = MMI->getLength();
+                dbg(errs() << ">>MMI " << *Dest << " | " << *Src << " | " << *Length   << "\n";)
+
+                IRBuilder<> B(MMI);
+                std::vector <Value*> arglist;
+
+                Value *DestPtr = B.CreateBitCast(Dest, hook.getFunctionType()->getParamType(0));
+                Value *SrcPtr = B.CreateBitCast(Src, hook.getFunctionType()->getParamType(0));
+                Value *IntOff = B.CreateSExt(Length, hook.getFunctionType()->getParamType(1));
+                
+                std::vector<Value*> dest_args;
+                dest_args.push_back(DestPtr);
+                dest_args.push_back(IntOff);
+                CallInst *DestChecked = B.CreateCall(hook, dest_args);          
+                Value *DestCleaned = B.CreatePointerCast(DestChecked, Dest->getType());
+
+                std::vector<Value*> src_args;
+                src_args.push_back(SrcPtr);
+                src_args.push_back(IntOff);
+                CallInst *SrcChecked = B.CreateCall(hook, src_args);          
+                Value *SrcCleaned = B.CreatePointerCast(SrcChecked, Src->getType());
+
+                MCI->setDest(DestCleaned);
+                MCI->setSource(SrcCleaned);          
+
+                changed = true;
+            }
+            else if (MemSetInst *MSI = dyn_cast<MemSetInst>(mi))
+            {
+                Value *Dest = MSI->getDest();
+                Value *Length = MSI->getLength();
+                dbg(errs() << ">>MSI " << *Dest << " | " << *Src << " | " << *Length   << "\n";)
+
+                IRBuilder<> B(MSI);
+                std::vector <Value*> arglist;
+
+                Value *DestPtr = B.CreateBitCast(Dest, hook.getFunctionType()->getParamType(0));
+                Value *IntOff = B.CreateSExt(Length, hook.getFunctionType()->getParamType(1));
+                
+                std::vector<Value*> dest_args;
+                dest_args.push_back(DestPtr);
+                dest_args.push_back(IntOff);
+                CallInst *DestChecked = B.CreateCall(hook, dest_args);          
+                Value *DestCleaned = B.CreatePointerCast(DestChecked, Dest->getType());
+
+                MCI->setDest(DestCleaned);       
+
+                changed = true;
+            }
+            return changed;
+        }
 
         bool instrGep(GetElementPtrInst *Gep) 
         {
@@ -417,6 +519,13 @@ namespace {
                     {
                         /* GEPs handling --- Apply the arithmetic to the top tag part*/
                         changed = instrGep(Gep);
+                    }
+                    else if (auto *memIntr = dyn_cast<MemIntrinsic>(Ins))
+                    {
+                        /* LLVM memory intrinsics handling */
+                        /* these are not wrapped and should be checked before cleaned */
+                        dbg(errs() << ">>LLVM memory intrinsic fn call:" << memIntr->getName() << " checking..\n";)
+                        changed = instrMemIntr(memIntr);
                     }
                 }
             } //endof forloop
