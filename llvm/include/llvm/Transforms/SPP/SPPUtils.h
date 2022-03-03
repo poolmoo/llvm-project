@@ -44,9 +44,11 @@ isStringFuncName (StringRef fname)
         fname.startswith("memcmp") || 
         fname.startswith("memchr") || 
         fname.startswith("strchr") || 
-        fname.startswith("strncat") || 
+        fname.startswith("strncat") ||
+        fname.startswith("strcat") || 
         fname.startswith("strtol") || 
         fname.startswith("strcpy") || 
+        fname.startswith("snprintf") ||
         fname.startswith("strlen")) 
     {   
         return true;

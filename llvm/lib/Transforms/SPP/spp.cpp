@@ -287,6 +287,30 @@ namespace {
             assert(!Instruction::isTerminator(I->getOpcode()));
             return &*std::next(BasicBlock::iterator(I));
         }
+
+        bool instrPtrToInt(Instruction *I)
+        {
+            IRBuilder<> B(I);
+
+            Value* Ptr = cast<PtrToIntInst>(I)->getPointerOperand();
+            assert(Ptr->getType()->isPointerTy()); 
+
+            Type *RetArgTy = Type::getInt8PtrTy(M->getContext());
+            SmallVector <Type*, 1> tlist;
+            tlist.push_back(RetArgTy);
+            FunctionType *hookfty = FunctionType::get(RetArgTy, RetArgTy, false);
+            FunctionCallee hook = M->getOrInsertFunction("__spp_cleantag", hookfty);
+
+            Value *TmpPtr = B.CreateBitCast(Ptr, hook.getFunctionType()->getParamType(0));
+            CallInst *Masked = B.CreateCall(hook, TmpPtr);
+            Value *NewPtr = B.CreatePointerCast(Masked, Ptr->getType());
+
+            int OpIdx = getOpIdx(I, Ptr);
+            I->setOperand(OpIdx, NewPtr);
+            errs() << ">> updated PtrToInt: " << *Masked << " " << *I << "\n";
+
+            return true;
+        }
         
         bool instrMemIntr(MemIntrinsic *mi)
         {
@@ -526,6 +550,12 @@ namespace {
                         /* these are not wrapped and should be checked before cleaned */
                         dbg(errs() << ">>LLVM memory intrinsic fn call:" << memIntr->getName() << " checking..\n";)
                         changed = instrMemIntr(memIntr);
+                    }
+                    else if (isa<PtrToIntInst>(Ins))
+                    {
+                        /* Clean the tag for now */
+                        errs() << ">>LLVM PtrToInt call: " << *Ins << " cleaning..\n";
+                        changed = instrPtrToInt(Ins);
                     }
                 }
             } //endof forloop
