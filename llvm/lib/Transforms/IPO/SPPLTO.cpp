@@ -133,15 +133,15 @@ demangleName(StringRef str)
 static bool
 doCallFunc_LLVMDbg(CallBase *CB)
 {
-    dbg(errs() << ">>llvm.dbg.CB\n";)
+    dbg(errs() << ">>llvm.dbg.CB" << *CB << "\n";)
 
     MetadataAsValue* Arg= dyn_cast<MetadataAsValue>(CB->getOperand(0));
     assert(Arg);
     
-    ValueAsMetadata * ArgMD= dyn_cast<ValueAsMetadata>(Arg->getMetadata());   
+    ValueAsMetadata* ArgMD= dyn_cast<ValueAsMetadata>(Arg->getMetadata());   
     assert(ArgMD);
     
-    Value * ArgVal= ArgMD->getValue();   
+    Value* ArgVal= ArgMD->getValue();   
     assert(ArgVal);
         
     if (!ArgVal->getType()->isPointerTy() || isa<Constant>(ArgVal)) {
@@ -250,7 +250,8 @@ doCallFunction(CallBase *cb, Function *cfn)
     assert(cfn);
    
     // just checking..
-    if (cfn->getName().startswith("llvm.dbg.")) 
+    if (cfn->getName().startswith("llvm.dbg.") && 
+        !cfn->getName().startswith("llvm.dbg.label")) 
     {
         return doCallFunc_LLVMDbg(cb); 
     }
