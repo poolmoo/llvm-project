@@ -311,6 +311,58 @@ namespace {
 
             return true;
         }
+
+        bool instrCallBase(CallBase *CB)
+        {
+            /*
+             *  Check for byval arguments and clean their tag 
+             */
+            bool changed = false;
+            dbg(errs() << ">>CallBase: "<< *CB << "\n";)
+            
+            if (CB->getCalledFunction() == NULL) 
+            {
+                return changed;
+            }
+
+            Module *mod = CB->getModule();
+            Type *vpty = Type::getInt8PtrTy(mod->getContext());
+            FunctionType *fty = FunctionType::get(vpty, vpty, false);
+            FunctionCallee hook = 
+                mod->getOrInsertFunction("__spp_cleantag", fty);
+
+            for (auto Arg = CB->arg_begin(); Arg != CB->arg_end(); ++Arg) 
+            {   
+                Value *ArgVal = dyn_cast<Value>(Arg);
+                if (!ArgVal) 
+                {
+                    dbg(errs() << ">>Argument skipping.. Not a value\n";)
+                    continue;
+                }
+                
+                /// Now we got a Value arg. 
+                if (ArgVal->getType()->isPointerTy() && 
+                    CB->paramHasAttr(Arg - CB->arg_begin(), Attribute::ByVal)) 
+                {
+                    dbg(errs()<<">>Argument by val.. cleaning\n";)
+                    IRBuilder<> B(CB);
+                    std::vector <Value*> arglist;
+
+                    Value *TmpPtr = B.CreateBitCast(ArgVal, 
+                                    hook.getFunctionType()->getParamType(0));
+                    arglist.push_back(TmpPtr);
+                    CallInst *Masked = B.CreateCall(hook, arglist);
+                    Value *Unmasked = B.CreateBitCast(Masked, ArgVal->getType()); 
+
+                    CB->setArgOperand(Arg - CB->arg_begin(), Unmasked);
+
+                    dbg(errs() << ">>new_CB after masking: " << *CB << "\n";)
+                    changed = true;
+                }                
+            }
+
+            return changed;
+        }
         
         bool instrMemIntr(MemIntrinsic *mi)
         {
@@ -554,8 +606,14 @@ namespace {
                     else if (isa<PtrToIntInst>(Ins))
                     {
                         /* Clean the tag for now */
-                        errs() << ">>LLVM PtrToInt call: " << *Ins << " cleaning..\n";
+                        dbg(errs() << ">>LLVM PtrToInt call: " << *Ins << " cleaning..\n";)
                         changed = instrPtrToInt(Ins);
+                    }
+                    else if (auto *callBase = dyn_cast<CallBase>(Ins))
+                    {
+                        /* Clean the tag for now */
+                        dbg(errs() << ">>LLVM CallBase : " << *Ins << " to check for byval args\n";)
+                        changed = instrCallBase(&*callBase);
                     }
                 }
             } //endof forloop
