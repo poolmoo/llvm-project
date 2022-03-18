@@ -342,9 +342,10 @@ namespace {
                 
                 /// Now we got a Value arg. 
                 if (ArgVal->getType()->isPointerTy() && 
-                    CB->paramHasAttr(Arg - CB->arg_begin(), Attribute::ByVal)) 
+                    ( CB->paramHasAttr(Arg - CB->arg_begin(), Attribute::ByVal) ||
+                      CB->paramHasAttr(Arg - CB->arg_begin(), Attribute::StructRet) ))
                 {
-                    dbg(errs()<<">>Argument by val.. cleaning\n";)
+                    dbg(errs()<<">>Argument ByVal or StructRet.. cleaning\n";)
                     IRBuilder<> B(CB);
                     std::vector <Value*> arglist;
 
