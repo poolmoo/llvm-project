@@ -62,6 +62,7 @@ isMemFuncName(StringRef fname)
 {
     if (fname.equals("memset") || 
         fname.equals("memcpy") ||
+        fname.equals("memmove") ||
         fname.equals("free")) 
     {  
         return true;
