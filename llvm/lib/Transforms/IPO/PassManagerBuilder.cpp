@@ -978,7 +978,7 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   PM.add(createGlobalSplitPass());
  
   /// SPP. SPPLTO.
-  PM.add(createSPPLTOPass());
+  // PM.add(createSPPLTOPass());
 
   // Apply whole-program devirtualization and virtual constant propagation.
   PM.add(createWholeProgramDevirtPass(ExportSummary, nullptr));

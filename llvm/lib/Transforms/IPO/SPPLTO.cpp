@@ -182,7 +182,7 @@ doCallExternal(CallBase *CB)
     if (CB->getCalledFunction() != NULL && 
         CB->getCalledFunction()->getName().contains("pmemobj_tx_add_range_direct")) 
     {
-            return changed;
+        return changed;
     }   
 
     Module *mod = CB->getModule();
@@ -218,7 +218,7 @@ doCallExternal(CallBase *CB)
         //if (isSafePtr(From->stripPointerCasts())) {
         //    continue; 
         //}
-        
+
         IRBuilder<> B(CB);
         vector <Value*> arglist;
 
@@ -250,11 +250,20 @@ doCallFunction(CallBase *cb, Function *cfn)
     assert(cfn);
    
     // just checking..
-    if (cfn->getName().startswith("llvm.dbg.") && 
-        !cfn->getName().startswith("llvm.dbg.label")) 
+    // FIXME: use subclasses of CallInst here
+    if (cfn->getName().startswith("llvm.eh.") ||
+        cfn->getName().startswith("llvm.dbg.") ||
+        cfn->getName().startswith("llvm.lifetime."))
     {
-        return doCallFunc_LLVMDbg(cb); 
+        return false;
     }
+    
+    // if (cfn->getName().startswith("llvm.dbg.") && 
+    //     !cfn->getName().startswith("llvm.dbg.label") &&
+    //     !cfn->getName().startswith("llvm.dbg.value")) 
+    // {
+    //     return doCallFunc_LLVMDbg(cb); 
+    // }
 
     if (cfn->isDeclaration() ||
         StringRef(demangleName(cfn->getName())).equals("pmemobj_direct_inline") ||
@@ -350,14 +359,14 @@ SPPLTO::runOnModule(Module &M)
 
     if (!M.getFunction("main")) 
     {
-        errs() << "!>ALERT: No main found in module\n";
+        dbg(errs() << "!>ALERT: No main found in module\n";)
         return false; /// DON'T DELETE ME!!
     }
      
     for (auto Fn = M.begin(); Fn != M.end(); ++Fn) 
     {
         dbg(errs() << ">>FName: " << Fn->getName() << "\n";)
-
+        // errs() << *Fn << "\n";
         if (Fn->isDeclaration()) 
         {
             dbg(errs() << ">>declaration: skipping..\n";)

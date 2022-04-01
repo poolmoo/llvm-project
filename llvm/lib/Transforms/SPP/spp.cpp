@@ -113,6 +113,37 @@ namespace {
                 globals.push_back(&*G);
             }
         }
+
+        bool isVtableGep(GetElementPtrInst *Gep) {
+
+            Value *SrcPtr = Gep->getPointerOperand();
+
+            if (SrcPtr->hasName() && SrcPtr->getName().startswith("vtable")) 
+            {
+                dbg(errs() << ">>Ignoring GV vtable GEP: " << *Gep << "\n";)
+                return true;
+            }
+
+            if (Gep->getNumIndices() == 1) {
+                Value *FirstOp = Gep->getOperand(1);
+                if (FirstOp->hasName() &&
+                    FirstOp->getName().startswith("vbase.offset")) 
+                {
+                    dbg(errs() << ">>Ignoring vbase GEP: " << *Gep << "\n";)
+                    return true;
+                }
+            }
+
+            if (GlobalVariable *GV = dyn_cast<GlobalVariable>(SrcPtr))
+            {
+                if (GV->getName().startswith("_ZTV")) 
+                {
+                    dbg(errs() << ">>Ignoring GV vtable GEP: " << *Gep << "\n";)
+                    return true;
+                }
+            }
+            return false;
+        }
         
         bool isTagUpdated(GetElementPtrInst *Gep)
         {
@@ -141,7 +172,7 @@ namespace {
             return false;
         }
 
-        bool isDefinedLater (Instruction *Op, Instruction *userI)
+        bool isDefinedLater(Instruction *Op, Instruction *userI)
         {
             Function *F = userI->getFunction();
             bool found = false;
@@ -166,6 +197,11 @@ namespace {
         
         bool isMissedGep(GetElementPtrInst *gep, Instruction *userI)
         {
+            if (isVtableGep(gep))
+            {
+                return false;
+            }
+
             if (isTagUpdated(gep)) 
             {
                 return false;
@@ -182,6 +218,7 @@ namespace {
 
             return true;
         }
+
         bool instrGepOperand(Instruction *userI, GetElementPtrInst *gep) 
         {            
             IRBuilder<> B(gep);
@@ -231,6 +268,7 @@ namespace {
                 }
 
                 GetElementPtrInst *GepOp= cast<GetElementPtrInst>(MyOp->stripPointerCasts()); 
+
                 if (isMissedGep(GepOp, Ins)) 
                 {
                     dbg(errs() << "!>ALERT: missed GepOp: " << *GepOp << " in " << *Ins \
@@ -307,7 +345,7 @@ namespace {
 
             int OpIdx = getOpIdx(I, Ptr);
             I->setOperand(OpIdx, NewPtr);
-            errs() << ">> updated PtrToInt: " << *Masked << " " << *I << "\n";
+            dbg(errs() << ">> updated PtrToInt: " << *Masked << " " << *I << "\n";)
 
             return true;
         }
@@ -482,10 +520,10 @@ namespace {
             /* We want to skip GEPs on vtable stuff, as they shouldn't be able to
             * overflow, and because they don't have metadata normally negative
             * GEPs fail on these. */
-            /*
             if (isVtableGep(Gep))
+            {
                 return false;
-            */
+            }
 
             /* TODO: we cannot support GEPs operating on vectors. */
             if (Gep->getType()->isVectorTy()) 
@@ -546,8 +584,16 @@ namespace {
             if (isa<GetElementPtrInst>(Ptr->stripPointerCasts())) 
             {
                 assert(!isMissedGep(cast<GetElementPtrInst>(Ptr->stripPointerCasts()), I));
-            } 
-             
+            }
+
+            if (Ptr->getName().startswith("vtable") ||
+                Ptr->getName().startswith("vbase.offset") ||
+                Ptr->getName().startswith("vfn")) 
+            {
+                dbg(errs() << ">>Ignoring vbase/vtable/vfn ld/st boundcheck: " << *I << "\n";)
+                return false;
+            }
+            
             Type *RetArgTy = Type::getInt8PtrTy(M->getContext());
             SmallVector <Type*, 1> tlist;
             tlist.push_back(RetArgTy);
@@ -657,8 +703,10 @@ namespace {
                 }
 
                 dbg(errs() << "Internal.. processing\n";)
-                changed = Spp.visitFunc(&*F);             
+                changed = Spp.visitFunc(&*F);
+            
             }
+            
             errs() << ">>Running_SPP_Module_Pass exiting...\n";
             return changed;
         }
